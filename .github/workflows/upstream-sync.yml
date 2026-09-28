@@ -1,0 +1,90 @@
+# Keeps this Omarchy-flavored fork in sync with upstream snowarch/inir.
+#
+# Every day (and on manual dispatch) it checks whether upstream main has
+# commits not yet in this fork's main. If so, it (force-)pushes a rolling
+# `chore/sync-upstream` branch at the upstream tip and opens/refreshes a PR
+# against main — so upstream changes arrive as reviewable PRs, never as
+# surprise direct pushes. Merge the PR (merge-commit keeps future diffs
+# clean; squash works too, the next run detects already-applied changes).
+#
+# Requires Actions enabled with read/write workflow permissions
+# (repo Settings → Actions → General).
+
+name: Sync upstream (snowarch/inir)
+
+on:
+  schedule:
+    - cron: "0 6 * * *" # daily 06:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: upstream-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out fork
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch upstream and fork state
+        run: |
+          git remote add upstream https://github.com/snowarch/inir.git 2>/dev/null || true
+          git fetch upstream main
+          git fetch origin main || true
+          git fetch origin chore/sync-upstream 2>/dev/null || true
+
+      - name: Check for new upstream commits
+        id: check
+        run: |
+          if git merge-base --is-ancestor upstream/main origin/main; then
+            echo "has_updates=false" >> "$GITHUB_OUTPUT"
+            echo "Upstream already merged. Nothing to do."
+          elif git diff --quiet origin/main upstream/main; then
+            echo "has_updates=false" >> "$GITHUB_OUTPUT"
+            echo "No content difference (e.g. previously squash-merged). Nothing to do."
+          else
+            echo "has_updates=true" >> "$GITHUB_OUTPUT"
+            echo "New upstream commits:"
+            git log --oneline origin/main..upstream/main | head -n 50
+          fi
+
+      - name: Push sync branch at upstream tip
+        if: steps.check.outputs.has_updates == 'true'
+        run: |
+          git checkout -B chore/sync-upstream upstream/main
+          git push --force origin chore/sync-upstream
+
+      - name: Open or refresh sync PR
+        if: steps.check.outputs.has_updates == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ "$(gh pr list --head chore/sync-upstream --base main --json number --jq 'length')" -eq 0 ]; then
+            SHORT_SHA="$(git rev-parse --short upstream/main)"
+            {
+              echo "Automated upstream sync. Upstream \`snowarch/inir@main\` has commits not yet in this fork."
+              echo ""
+              echo "New commits:"
+              git log origin/main..upstream/main --pretty=format:'- %h %s' | head -n 50
+              echo ""
+              echo ""
+              echo "Review (resolve conflicts here if GitHub reports any), then merge when ready."
+              echo "Prefer a **merge commit** so future syncs stay clean. This PR refreshes"
+              echo "automatically every day while it stays open."
+            } > /tmp/sync-pr-body.md
+            gh pr create \
+              --base main \
+              --head chore/sync-upstream \
+              --title "chore: sync upstream snowarch/inir@${SHORT_SHA}" \
+              --body-file /tmp/sync-pr-body.md
+          else
+            echo "Sync PR already open — refreshed by the push above."
+          fi
