@@ -195,6 +195,28 @@ Singleton {
             }
         },
         {
+            id: "switch-to-omarchy",
+            name: Translation.tr("Switch to Omarchy (Hyprland)"),
+            description: Translation.tr("Set login target to Omarchy Hyprland and switch now"),
+            icon: "swap_horiz",
+            category: "system",
+            keywords: ["switch", "omarchy", "hyprland", "compositor", "session", "desktop"],
+            execute: () => {
+                Session.switchCompositor("hyprland")
+            }
+        },
+        {
+            id: "switch-to-niri",
+            name: Translation.tr("Switch to Niri"),
+            description: Translation.tr("Set login target to Niri and switch now"),
+            icon: "swap_horiz",
+            category: "system",
+            keywords: ["switch", "niri", "compositor", "session", "desktop"],
+            execute: () => {
+                Session.switchCompositor("niri")
+            }
+        },
+        {
             id: "open-settings",
             name: Translation.tr("Open Settings"),
             description: Translation.tr("Open the shell settings panel"),
