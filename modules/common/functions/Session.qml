@@ -101,6 +101,17 @@ Singleton {
         Quickshell.execDetached(["/usr/bin/pkill", "-i", "Hyprland"]);
     }
 
+    // Switch the login compositor (Hyprland <-> Niri) and log straight back
+    // into it. Implemented by scripts/compositor-switch.sh: it rewrites the
+    // SDDM autologin Session= (needs one polkit/sudo auth) and exits the
+    // compositor; SDDM Relogin=true returns directly to the target session.
+    // No terminal here, so auth goes through the polkit GUI agent.
+    function switchCompositor(dest) {
+        if (dest !== "hyprland" && dest !== "niri")
+            return;
+        Quickshell.execDetached([Quickshell.shellPath("scripts/compositor-switch.sh"), "switch", dest]);
+    }
+
     function launchTaskManager() {
         AppLauncher.launch("taskManager")
     }

@@ -7,19 +7,13 @@
 # @meta icon: music_note
 # @meta keywords: spotify music spicetify aur flatpak
 #
-# Arch family : `spotify` (AUR) + `spicetify-cli` (AUR).
-#               Follows the official Spicetify docs for Linux setup:
-#               https://spicetify.app/docs/getting-started
-#
-#               Detects incompatible installs (Flatpak, Snap, spotify-launcher,
-#               and conflicting spicetify-cli-git package) and asks before any
-#               removal. It leaves declined conflicts untouched and explains
-#               why setup cannot continue until they are resolved. It then
-#               configures paths and permissions, repairs missing Spicetify
-#               v2.44+ wrapper assets, generates prefs if needed, applies
-#               Spicetify backup with progressive recovery, installs Marketplace,
-#               automatically enables Spicetify theming in iNiR config, and
-#               applies the theme.
+# Arch family : `spotify` (AUR) + `spicetify-cli` (AUR). Repairs the
+#               Spicetify v2.44+ wrapper asset when source-built packages omit
+#               it, then tries `spicetify backup apply` first. It only launches
+#               Spotify (so the user can sign in and Spotify can generate its
+#               prefs file) if the first apply fails. Then sets prefs_path,
+#               retries, installs the Marketplace, enables the iNiR Spicetify
+#               theme in config.json, and applies it immediately.
 # Other distros: falls back to the Flatpak build of Spotify. Spicetify is
 #                skipped because it cannot patch the Flatpak install reliably.
 #
@@ -36,21 +30,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=scripts/lib/config-path.sh
 . "$SCRIPT_DIR/../lib/config-path.sh"
 
-# ------------------------------------------------------------------------------
-# Config & Paths
-# ------------------------------------------------------------------------------
 CONFIG_PATH="$(inir_config_file)"
-THEME_SCRIPT="$SCRIPT_DIR/../colors/apply-spicetify-theme.sh"
 
-# ------------------------------------------------------------------------------
-# Helpers
-# ------------------------------------------------------------------------------
+_find_prefs() {
+    find "$HOME" -path '*/spotify/prefs' -print -quit 2>/dev/null
+}
 
-# Print an error and exit, holding the terminal open.
-_die() {
-    setup_fail "$1"
-    setup_finish_pause
-    exit 1
+_have_spotify_and_spicetify() {
+    have_cmd spotify && have_cmd spicetify
 }
 
 _run_may_fail() {
@@ -299,26 +286,25 @@ _enable_spicetify_theming() {
     ) 200>"$lockfile"
 }
 
-# ------------------------------------------------------------------------------
-# Phase 1 — Check and optionally remove incompatible installs
-# ------------------------------------------------------------------------------
-# Spicetify can only patch the official AUR package at /opt/spotify.
-# Conflicting package formats are detected first. Every removal requires an
-# explicit confirmation; declining any removal leaves the existing installs
-# untouched and stops setup before package installation begins.
-# ------------------------------------------------------------------------------
-_confirm_removal() {
-    local description="$1"
-    local answer
-
-    printf '\n  · Detected %s.\n' "$description"
-    printf '    Remove it before continuing with the AUR setup? [y/N] '
-    if ! read -r answer; then
-        printf '\n    No confirmation received; leaving it installed.\n' >&2
+_enable_spicetify_theming() {
+    if ! have_cmd jq; then
+        echo "  · jq not available; cannot enable Spicetify theming in config." >&2
         return 1
     fi
-    [[ "$answer" =~ ^[Yy]([Ee][Ss])?$ ]]
+    echo "  · Enabling Spicetify theming in iNiR config…"
+    if [[ ! -f "$CONFIG_PATH" ]]; then
+        echo '{}' > "$CONFIG_PATH"
+    fi
+    local lockfile="$CONFIG_PATH.lock"
+    (
+        flock -w 5 200 || { echo "  · Config lock timeout." >&2; return 1; }
+        jq '.appearance.wallpaperTheming.enableSpicetify = true' \
+            "$CONFIG_PATH" > "$CONFIG_PATH.tmp" \
+            && mv "$CONFIG_PATH.tmp" "$CONFIG_PATH"
+    ) 200>"$lockfile"
 }
+
+setup_init "spotify" "Setup Spotify + Spicetify"
 
 _arch_package_installed() {
     have_cmd pacman && pacman -Q "$1" >/dev/null 2>&1
@@ -586,25 +572,23 @@ _install_marketplace() {
     fi
 }
 
-_apply_theme() {
+    setup_progress 6 $TOTAL "Enabling and applying iNiR Spicetify theme"
     if ! _enable_spicetify_theming; then
-        echo "  · warning: Could not enable Spicetify theming in config; continuing." >&2
+        echo "warning: Could not enable Spicetify theming in config; continuing." >&2
     fi
-
-    if [[ -x "$THEME_SCRIPT" ]]; then
-        local theme_name
-        theme_name="$(jq -r '.appearance.wallpaperTheming.spicetifyTheme // "Inir"' "$CONFIG_PATH" 2>/dev/null || printf 'Inir')"
+    theme_script="$SCRIPT_DIR/../colors/apply-spicetify-theme.sh"
+    if [[ -x "$theme_script" ]]; then
+        theme_name="$(jq -r '.appearance.wallpaperTheming.spicetifyTheme // "Inir"' "$CONFIG_PATH" 2>/dev/null)"
         if [[ "$theme_name" != "Inir" && "$theme_name" != "InirTUI" ]]; then
             theme_name="Inir"
         fi
-        echo "  · Applying iNiR theme ($theme_name)…"
-        if "$THEME_SCRIPT" --theme "$theme_name"; then
-            echo "  · iNiR theme applied."
+        if "$theme_script" --theme "$theme_name"; then
+            echo "iNiR theme applied."
         else
-            echo "  · warning: theme script returned non-zero; rerun it manually if Spotify looks unstyled." >&2
+            echo "warning: theme script returned non-zero; rerun it manually if Spotify looks unstyled." >&2
         fi
     else
-        echo "  · warning: $THEME_SCRIPT not found or not executable; skipping theme." >&2
+        echo "warning: $theme_script not found or not executable; skipping theme." >&2
     fi
 }
 
