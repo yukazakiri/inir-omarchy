@@ -2,6 +2,7 @@ pragma ComponentBehavior: Bound
 
 import qs
 import qs.services
+import qs.services.deferred
 import qs.modules.common
 import QtQuick
 import Quickshell
@@ -160,6 +161,15 @@ Scope {
 
     IpcHandler {
         target: "altSwitcher"
+
+        function opens(which: string): string {
+            if (which === "inir" || which === "niri") {
+                NiriKeybinds.setAltTabSource(which)
+                return which
+            }
+            NiriKeybinds.refreshAltTab()
+            return NiriKeybinds.altTabSource || "reading, ask again"
+        }
 
         function open(): void {
             if (root.routeToVisualWaffle) {

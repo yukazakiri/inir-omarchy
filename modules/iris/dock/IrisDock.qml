@@ -48,13 +48,95 @@ Item {
     readonly property bool magnify: (root.options?.magnification ?? true) && IrisStyle.motionEnabled
     readonly property bool badges: root.options?.badges ?? true
     readonly property bool revealOnEmpty: root.options?.revealOnEmpty ?? true
-    readonly property var apps: TaskbarApps.apps
     readonly property var entries: {
-        const list = root.apps.slice()
-        while (list.length > 0 && list[0].appId === "SEPARATOR") list.shift()
-        while (list.length > 0 && list[list.length - 1].appId === "SEPARATOR") list.pop()
+        const list = root.trimmed(root.ordered)
         if (root.showLauncher && list.length > 0) list.unshift({ appId: "SEPARATOR" })
         return list
+    }
+    function trimmed(list: var): var {
+        const out = list.slice()
+        while (out.length > 0 && (out[0].appId ?? out[0]) === "SEPARATOR") out.shift()
+        while (out.length > 0 && (out[out.length - 1].appId ?? out[out.length - 1]) === "SEPARATOR") out.pop()
+        return out
+    }
+
+    readonly property bool reorder: root.options?.reorder ?? true
+    property string slideApp: ""
+    property var slideIds: null
+    property var slideOrigin: []
+    property bool sliding: false
+    property real slideFrom: 0
+    property real slideAt: 0
+    Behavior on slideAt {
+        enabled: !root.sliding && IrisStyle.motionEnabled
+        NumberAnimation { duration: IrisStyle.duration(220); easing.type: IrisStyle.feedbackEasing }
+    }
+    readonly property var ordered: {
+        const base = IrisDockOrder.entries
+        if (!root.slideIds) return base
+        const byId = {}
+        for (const e of base) byId[e.appId] = e
+        const out = root.slideIds.filter(id => id === "SEPARATOR" || byId[id] !== undefined)
+            .map(id => id === "SEPARATOR" ? ({ appId: "SEPARATOR" }) : byId[id])
+        for (const e of base) if (e.appId !== "SEPARATOR" && !root.slideIds.includes(e.appId)) out.push(e)
+        return out
+    }
+    function centreIn(ids: var, appId: string): real {
+        let x = root.showLauncher ? root.slotWidth + root.separatorWidth + 2 * root.slotSpacing : 0
+        for (const id of root.trimmed(ids)) {
+            const w = id === "SEPARATOR" ? root.separatorWidth : root.slotWidth
+            if (id === appId) return x + w / 2
+            x += w + root.slotSpacing
+        }
+        return x
+    }
+    function slideBegin(appId: string): void {
+        settleDelay.stop()
+        root.slideOrigin = root.ordered.map(e => e.appId)
+        root.slideIds = root.slideOrigin
+        root.slideApp = appId
+        root.sliding = true
+        root.slideFrom = root.centreIn(root.slideIds, appId)
+        root.slideAt = root.slideFrom
+        nameLabel.present(null, "")
+    }
+    function slideTo(along: real): void {
+        if (!root.sliding) return
+        root.slideAt = root.slideFrom + along
+        const others = root.slideIds.filter(id => id !== root.slideApp)
+        let best = root.slideIds
+        let bestDistance = Math.abs(root.centreIn(best, root.slideApp) - root.slideAt)
+        for (let k = 0; k <= others.length; k++) {
+            const ids = others.slice(0, k).concat([root.slideApp], others.slice(k))
+            const distance = Math.abs(root.centreIn(ids, root.slideApp) - root.slideAt)
+            if (distance < bestDistance - 0.5) { best = ids; bestDistance = distance }
+        }
+        if (best !== root.slideIds) root.slideIds = best
+    }
+    function slideEnd(committed: bool): void {
+        if (!root.sliding) return
+        if (!committed || !IrisDockOrder.drop(root.slideApp, root.slideIds)) root.slideIds = root.slideOrigin
+        root.sliding = false
+        root.slideAt = root.centreIn(root.slideIds, root.slideApp)
+        settleDelay.restart()
+    }
+    Connections {
+        target: GlobalStates
+        function onIrisDockSlideChanged(): void {
+            const request = GlobalStates.irisDockSlide
+            if (!request || root.screen?.name !== GlobalStates.focusedScreen?.name) return
+            if (!root.sliding) {
+                if (!root.ordered.some(e => e.appId === request.appId)) return
+                root.slideBegin(request.appId)
+            }
+            root.slideTo(request.along)
+            if (request.done) root.slideEnd(true)
+        }
+    }
+    Timer {
+        id: settleDelay
+        interval: IrisStyle.duration(220) + 80
+        onTriggered: { root.slideApp = ""; root.slideIds = null }
     }
     // Keyed by appId: TaskbarApps rebuilds entries on every window event.
     readonly property var liveApps: {
@@ -114,6 +196,7 @@ Item {
         function onControlPanelOpenChanged(): void { if (GlobalStates.controlPanelOpen) root.seenAllAt = Date.now() }
     }
     readonly property real slotWidth: root.iconSize + 10 * root.d
+    readonly property real plateSize: Math.round(root.iconSize + 6 * root.d)
     readonly property real separatorWidth: 13 * root.d
     readonly property real slotSpacing: 2 * root.d
     readonly property real magnifyGain: Math.max(0.1, Math.min(1, (Number(root.options?.magnifySize ?? 150) - 100) / 100))
@@ -155,6 +238,22 @@ Item {
     readonly property alias inputOff: window.inputOff
     readonly property alias hitItem: hitArea
     readonly property alias bodyShape: window.bodyShape
+    readonly property alias editShapes: window.editShapes
+    // Customize selects the Dock first and what is in it second, as a design tool enters a group: a click on an app
+    // selects the whole Dock unless the Dock (or something in it) already is, then the app.
+    readonly property var editMembers: root.entries.filter(entry => entry.appId !== "SEPARATOR")
+        .map(entry => IrisPieces.appPieceId(entry.appId))
+        .concat(root.pieces.map(piece => String(piece.slot).startsWith("extra-") ? "extra:" + String(piece.slot).slice(6) : String(piece.slot)))
+    function editSelect(member: string): void {
+        const inside = GlobalStates.irisEditTarget === "dock" || root.editMembers.includes(GlobalStates.irisEditSelection)
+        if (!inside) {
+            GlobalStates.irisEditSelection = ""
+            GlobalStates.irisEditTarget = "dock"
+            return
+        }
+        GlobalStates.irisEditTarget = ""
+        GlobalStates.irisEditSelection = member
+    }
     function closeMenu(): void { window.menuApp = null }
 
     Item {
@@ -237,10 +336,12 @@ Item {
             readonly property bool overFullscreen: window.overviewOverFullscreen || (window.fullscreenCovered
                 && (window.askedShown || window.menuOpen || window.editingDock))
             readonly property bool fullscreenIdle: window.fullscreenCovered && !window.overFullscreen
-            readonly property bool stepAside: GlobalStates.widgetEditMode || (GlobalStates.irisEdit && !window.editingDock)
+            // The widget toolbar takes the edge opposite the Island, so the Dock makes room. Customize stays under
+            // the Island: the Dock is part of what is customized and stays in view to be touched.
+            readonly property bool stepAside: GlobalStates.widgetEditMode
             onStepAsideChanged: if (window.stepAside) window.menuApp = null
             readonly property bool revealed: !window.fullscreenIdle && !window.stepAside && (!root.autoHide || window.edgeIntent || window.menuOpen
-                || window.askedShown || window.spotlightHere || window.workspaceEmpty || window.editingDock)
+                || window.askedShown || window.spotlightHere || window.workspaceEmpty || GlobalStates.irisEdit)
             onPointerOnDockChanged: {
                 if (window.pointerOnDock) {
                     hideDelay.stop()
@@ -302,7 +403,7 @@ Item {
             property var frozenSlotX: null
             readonly property var pointerSlotX: {
                 if (window.menuOpen) return window.frozenSlotX
-                if (!root.magnify || !window.pointerOnDock || !window.revealed) return null
+                if (!root.magnify || !window.pointerOnDock || !window.revealed || root.slideApp.length > 0) return null
                 const x = root.vertical ? windowHover.point.position.y - (window.height - dock.baseWidth) / 2
                     : windowHover.point.position.x - (window.width - dock.baseWidth) / 2
                 if (x < -root.slotWidth || x > dock.baseWidth + root.slotWidth) return null
@@ -328,6 +429,23 @@ Item {
                 return (Math.cos(Math.PI * distance / range) + 1) / 2
             }
 
+            // Customize outlines an app or a piece of the Dock by its own mark (the hover plate's square), under the
+            // id its click selects, so pointing at kitty names kitty and not the whole Dock.
+            readonly property var editShapes: {
+                if (!GlobalStates.irisEdit || dock.opacity <= 0.01) return []
+                void (dock.x + dock.y + dock.width + dock.height + appRow.width + appRow.height + window.edgeOffset + window.screenOffsetY)
+                const out = []
+                const size = root.plateSize
+                for (const child of appRow.children) {
+                    const id = String(child.editId ?? "")
+                    const cell = child.editFace ?? null
+                    if (id.length === 0 || !cell || !child.visible || cell.width <= 0) continue
+                    const at = cell.mapToItem(window, root.edgeX(cell.width, size, 4 * root.d), root.edgeY(cell.height, size, 4 * root.d))
+                    out.push({ id: id, x: Math.round(at.x), y: Math.round(at.y + window.screenOffsetY), width: size, height: size,
+                        radius: IrisStyle.iconRadius(size), inDock: true })
+                }
+                return out
+            }
             readonly property var bodyShape: {
                 void (dock.x + dock.y + dock.width + dock.height + dock.radius
                     + window.edgeOffset + window.width + window.height + window.screenOffsetY
@@ -389,7 +507,10 @@ Item {
             readonly property real notchReveal: Math.max(0, Math.min(1, (window.edgeOffset + window.dockHeight) / window.dockHeight))
             IrisSurface {
                 id: dock
-                readonly property real padding: 8 * root.d
+                // The ends give the first and last hover plate room to sit concentric with the Dock's end curve:
+                // a plate of radius r starts R − r from an end of radius R (nothing changes on a tight Dock).
+                readonly property real padding: Math.max(8 * root.d,
+                    dock.radius - IrisStyle.iconRadius(root.plateSize) - (root.slotWidth - root.plateSize) / 2)
                 readonly property real baseWidth: (window.baseCenters.length > 0
                     ? window.baseCenters[window.baseCenters.length - 1] + root.slotWidth / 2 : 0) + dock.padding * 2
                 width: root.vertical ? window.dockHeight : Math.min(window.width - 32, appRow.implicitWidth + dock.padding * 2)
@@ -399,7 +520,7 @@ Item {
                 y: root.vertical ? Math.round((window.height - height) / 2)
                     : root.atTop ? window.edgeOffset : window.height - height - window.edgeOffset
                 readonly property real thickness: root.vertical ? width : height
-                radius: root.notch ? dock.thickness / 2 : IrisStyle.pieceRadius(dock.thickness)
+                radius: IrisStyle.profileRadius(IrisStyle.bodyProfile(IrisStyle.dockShape, root.notch), dock.thickness)
                 quiet: true
                 opacity: window.revealed || window.edgeOffset > -window.dockHeight ? 1 : 0
 
@@ -425,13 +546,17 @@ Item {
                         xAxis.enabled: root.vertical
                         yAxis.enabled: !root.vertical
                         property real startSize: 40
-                        onActiveChanged: if (active) dockResizeDrag.startSize = Number(Config.options?.iris?.dock?.iconSize ?? 40)
+                        property IrisConfigDrag write: IrisConfigDrag { path: "iris.dock.iconSize" }
+                        onActiveChanged: {
+                            if (active) dockResizeDrag.startSize = Number(Config.options?.iris?.dock?.iconSize ?? 40)
+                            else dockResizeDrag.write.flush()
+                        }
                         onTranslationChanged: {
                             if (!active) return
                             const outward = root.vertical ? (root.atLeft ? translation.x : -translation.x)
                                 : (root.atTop ? translation.y : -translation.y)
                             const delta = outward / Math.max(0.01, root.d)
-                            Config.setNestedValue("iris.dock.iconSize", Math.round(Math.max(28, Math.min(64, dockResizeDrag.startSize + delta))))
+                            dockResizeDrag.write.push(Math.round(Math.max(28, Math.min(64, dockResizeDrag.startSize + delta))))
                         }
                     }
                 }
@@ -444,6 +569,10 @@ Item {
                     x: root.vertical ? (root.atLeft ? Math.round(4 * root.d) : parent.width - width - Math.round(4 * root.d)) : dock.padding
                     y: root.vertical ? dock.padding : (root.atTop ? Math.round(4 * root.d) : parent.height - height - Math.round(4 * root.d))
                     spacing: root.slotSpacing
+                    move: Transition {
+                        enabled: root.slideApp.length > 0 && IrisStyle.motionEnabled
+                        NumberAnimation { properties: "x,y"; duration: IrisStyle.duration(200); easing.type: IrisStyle.feedbackEasing }
+                    }
 
                     component Slot: Item {
                         id: slot
@@ -462,6 +591,9 @@ Item {
                         id: launcherSlot
                         visible: root.showLauncher
                         slotIndex: 0
+                        HoverPlate {
+                            lit: launcherArea.containsMouse || launcherArea.pressed
+                        }
                         MouseArea {
                             id: launcherArea
                             anchors.fill: parent
@@ -502,7 +634,7 @@ Item {
                                             height: width
                                             radius: width / 2
                                             color: (launcherArea.containsMouse ? IrisStyle.text : IrisStyle.textStrong)
-                                            Behavior on color { ColorAnimation { duration: IrisStyle.duration(120) } }
+                                            Behavior on color { ColorAnimation { duration: IrisStyle.duration(120); easing.type: IrisStyle.feedbackEasing } }
                                         }
                                     }
                                 }
@@ -528,8 +660,17 @@ Item {
                             required property int index
                             readonly property var app: root.liveApps[entry.modelData.appId] ?? entry.modelData
                             readonly property bool separator: entry.modelData.appId === "SEPARATOR"
+                            readonly property string editId: entry.separator ? "" : "piece:" + appSlot.pieceId
+                            readonly property Item editFace: entry.separator ? null : appSlot
                             width: root.vertical ? root.thickness : entry.separator ? root.separatorWidth : appSlot.width
                             height: root.vertical ? (entry.separator ? root.separatorWidth : appSlot.height) : root.thickness
+                            readonly property real slideOffset: !entry.separator && entry.modelData.appId === root.slideApp
+                                ? root.slideAt - (root.vertical ? entry.y + entry.height / 2 : entry.x + entry.width / 2) : 0
+                            z: entry.slideOffset !== 0 ? 10 : 0
+                            transform: Translate {
+                                x: root.vertical ? 0 : entry.slideOffset
+                                y: root.vertical ? entry.slideOffset : 0
+                            }
 
                             Connections {
                                 target: GlobalStates
@@ -568,10 +709,21 @@ Item {
                                 property real lift: 0
                                 readonly property string pieceId: IrisPieces.appPieceId(entry.modelData.appId)
                                 readonly property bool carried: GlobalStates.irisBubbleDrag?.slot === appSlot.pieceId
+                                Binding {
+                                    target: GlobalStates
+                                    property: "irisDockHome"
+                                    when: appSlot.carried
+                                    restoreMode: Binding.RestoreNone
+                                    value: {
+                                        void (entry.x + entry.y + appRow.x + appRow.y + dock.x + dock.y + window.edgeOffset + window.screenOffsetY)
+                                        const c = appSlot.mapToItem(window, appButton.iconCentreInSlot.x, appButton.iconCentreInSlot.y)
+                                        return { screen: root.screen?.name ?? "", appId: entry.modelData.appId,
+                                            x: Math.round(c.x), y: Math.round(c.y + window.screenOffsetY) }
+                                    }
+                                }
                                 function primary(): void {
                                     if (GlobalStates.irisEdit) {
-                                        GlobalStates.irisEditTarget = ""
-                                        GlobalStates.irisEditSelection = appSlot.pieceId
+                                        root.editSelect(appSlot.pieceId)
                                         return
                                     }
                                     if ((entry.app.toplevels?.length ?? 0) > 1) {
@@ -595,10 +747,15 @@ Item {
                                 SequentialAnimation {
                                     id: launchBounce
                                     loops: 2
-                                    NumberAnimation { target: appSlot; property: "lift"; to: 14 * root.d; duration: 220; easing.type: IrisStyle.feedbackEasing }
-                                    NumberAnimation { target: appSlot; property: "lift"; to: 0; duration: 260; easing.type: Easing.OutBounce }
+                                    // A hop under gravity: slowing up, speeding down, and no ball-bounce on landing.
+                                    NumberAnimation { target: appSlot; property: "lift"; to: 14 * root.d; duration: IrisStyle.duration(240); easing.type: Easing.OutQuad }
+                                    NumberAnimation { target: appSlot; property: "lift"; to: 0; duration: IrisStyle.duration(240); easing.type: Easing.InQuad }
                                 }
 
+                                HoverPlate {
+                                    lift: appSlot.lift + appIcon.hoverLift
+                                    lit: appButton.hovered || appButton.down
+                                }
                                 IrisButton {
                                     id: appButton
                                     anchors.fill: parent
@@ -652,16 +809,6 @@ Item {
                                         void (host?.x + host?.y + host?.width + host?.height + appButton.x + appButton.y + appButton.width + appButton.height)
                                         return host ? host.mapToItem(appSlot, appButton.iconCentre.x, appButton.iconCentre.y) : Qt.point(appSlot.width / 2, appSlot.height / 2)
                                     }
-                                    Rectangle {
-                                        visible: !root.magnify
-                                        x: Math.round(appButton.iconCentre.x - width / 2)
-                                        y: Math.round(appButton.iconCentre.y - height / 2)
-                                        width: root.iconSize + 8 * root.d
-                                        height: width
-                                        radius: IrisStyle.iconRadius(width)
-                                        color: (appButton.hovered || appButton.down ? IrisStyle.fill : ColorUtils.applyAlpha(IrisStyle.text, 0))
-                                        Behavior on color { ColorAnimation { duration: IrisStyle.duration(120) } }
-                                    }
                                     SmartAppIcon {
                                         id: appIcon
                                         property real hoverLift: !root.magnify && appButton.hovered ? 2 * root.d : 0
@@ -677,8 +824,8 @@ Item {
                                         readonly property real press: appButton.down || appGrip.pressed ? IrisStyle.pressScale(0.92) : 1
                                         scale: appSlot.iconScale * press
                                         visible: !largeIcon.visible
+                                        // The bubble leaves from and lands on this very square: a swap, no fade, or the slot blinks empty.
                                         opacity: appSlot.carried ? 0 : 1
-                                        Behavior on opacity { NumberAnimation { duration: IrisStyle.duration(120); easing.type: IrisStyle.feedbackEasing } }
                                     }
                                     SmartAppIcon {
                                         id: largeIcon
@@ -713,7 +860,11 @@ Item {
                                         pullDistance: GlobalStates.irisEdit ? 6 * root.d : root.iconSize * 0.7
                                         enabled: !entry.separator && !window.menuOpen
                                             && !IrisPieces.appFloating(entry.modelData.appId)
-                                        onTapped: appSlot.primary()
+                                    slideEnabled: root.reorder && !GlobalStates.irisEdit
+                                    onTapped: appSlot.primary()
+                                    onSlidingChanged: if (sliding) root.slideBegin(entry.modelData.appId)
+                                    onSlid: along => root.slideTo(along)
+                                    onSlideEnded: committed => root.slideEnd(committed)
                                     }
                                 }
                                 IrisBadge {
@@ -747,34 +898,28 @@ Item {
                                         : appButton.iconCentreInSlot.x - width / 2)
                                     y: Math.round(root.atTop ? 0 : root.atBottom ? appSlot.height - height
                                         : appButton.iconCentreInSlot.y - height / 2)
-                                    spacing: 2 * Math.max(1, Math.round(2 * root.d))
+                                    spacing: Math.max(1, Math.round(2.5 * root.d))
                                     visible: windows > 0
                                     Repeater {
                                         model: indicators.windows
-                                        Rectangle {
+                                        IrisPulse {
                                             id: indicator
                                             required property int index
                                             readonly property bool lead: indicator.index === indicators.focusedIndex
-                                            readonly property real dot: 2 * Math.max(2, Math.round(3 * root.d))
-                                            property real long: indicator.lead ? 2 * Math.round(8 * root.d) : indicator.dot
-                                            height: root.vertical ? Math.round(indicator.long) : indicator.dot
-                                            width: root.vertical ? indicator.dot : Math.round(indicator.long)
-                                            antialiasing: true
+                                            readonly property real dot: 2 * Math.max(1, Math.round(2 * root.d))
+                                            property real along: indicator.lead ? 2 * Math.round(6 * root.d) : indicator.dot
+                                            height: root.vertical ? Math.round(indicator.along) : indicator.dot
+                                            width: root.vertical ? indicator.dot : Math.round(indicator.along)
                                             radius: Math.min(width, height) / 2
                                             color: indicators.minimizedOnly ? "transparent"
                                                 : indicators.urgent ? IrisStyle.secondaryAccent
                                                 : indicator.lead ? IrisStyle.text : (appSlot.focused ? IrisStyle.textSecondary : IrisStyle.textTertiary)
-                                            border.width: indicators.minimizedOnly ? Math.max(1, Math.round(1.2 * root.d)) : 0
-                                            border.color: IrisStyle.textSecondary
-                                            Behavior on long { NumberAnimation { duration: IrisStyle.morphDuration; easing.type: Easing.BezierSpline; easing.bezierCurve: IrisStyle.morphCurve } }
-                                            Behavior on color { ColorAnimation { duration: IrisStyle.duration(140) } }
-                                            SequentialAnimation on opacity {
-                                                running: indicators.urgent && IrisStyle.motionEnabled && indicator.visible
-                                                loops: Animation.Infinite
-                                                NumberAnimation { to: 0.35; duration: 650; easing.type: Easing.InOutSine }
-                                                NumberAnimation { to: 1; duration: 650; easing.type: Easing.InOutSine }
-                                                onRunningChanged: if (!running) indicator.opacity = 1
-                                            }
+                                            borderWidth: indicators.minimizedOnly ? Math.max(1, Math.round(1.2 * root.d)) : 0
+                                            borderColor: IrisStyle.textSecondary
+                                            Behavior on along { NumberAnimation { duration: IrisStyle.morphDuration; easing.type: Easing.BezierSpline; easing.bezierCurve: IrisStyle.morphCurve } }
+                                            Behavior on color { ColorAnimation { duration: IrisStyle.duration(140); easing.type: IrisStyle.feedbackEasing } }
+                                            pulsing: indicators.urgent
+                                            halfPeriod: 650
                                         }
                                     }
                                 }
@@ -801,6 +946,8 @@ Item {
                             id: pieceSlot
                             required property var modelData
                             required property int index
+                            readonly property string editId: "piece:" + pieceSlot.modelData.slot
+                            readonly property Item editFace: pieceSlot
                             slotIndex: (root.showLauncher ? 1 : 0) + root.entries.length + 1 + pieceSlot.index
                             readonly property string label: Translation.tr(IrisPieces.labelOf(pieceSlot.modelData.kind))
                             function rect(): var {
@@ -808,14 +955,8 @@ Item {
                                 const size = pieceFace.width * pieceFace.scale
                                 return { x: p.x, y: p.y, size: size, source: "dock-" + pieceSlot.modelData.slot }
                             }
-                            Rectangle {
-                                visible: !root.magnify
-                                anchors.centerIn: pieceFace
-                                width: root.iconSize + 8 * root.d
-                                height: width
-                                radius: width / 2
-                                color: pieceHover.hovered || pieceTap.pressed ? IrisStyle.fill : ColorUtils.applyAlpha(IrisStyle.text, 0)
-                                Behavior on color { ColorAnimation { duration: IrisStyle.duration(120) } }
+                            HoverPlate {
+                                lit: pieceHover.hovered || pieceTap.pressed
                             }
                             IrisBubbleFace {
                                 id: pieceFace
@@ -850,9 +991,8 @@ Item {
                                         return
                                     }
                                     if (GlobalStates.irisEdit) {
-                                        GlobalStates.irisEditTarget = ""
-                                        GlobalStates.irisEditSelection = pieceSlot.modelData.slot.startsWith("extra-")
-                                            ? "extra:" + pieceSlot.modelData.slot.slice(6) : pieceSlot.modelData.slot
+                                        root.editSelect(pieceSlot.modelData.slot.startsWith("extra-")
+                                            ? "extra:" + pieceSlot.modelData.slot.slice(6) : pieceSlot.modelData.slot)
                                         return
                                     }
                                     root.pieceActivated(pieceSlot.modelData.slot, pieceSlot.modelData.kind, pieceSlot.rect())
@@ -869,7 +1009,7 @@ Item {
                                     accumulated -= steps * 120
                                     GlobalStates.quietIrisLevels()
                                     if (pieceSlot.modelData.kind === "mic") Audio.setSourceVolume(Math.max(0, Math.min(1, (Audio.micVolume ?? 0) + steps * 0.05)))
-                                    else Audio.setSinkVolume(Math.max(0, Math.min(1, (Audio.value ?? 0) + steps * 0.05)))
+                                    else Audio.setSinkVolume(Math.max(0, Math.min(Math.max(1, Audio.ceiling), (Audio.value ?? 0) + steps * 0.05)))
                                 }
                             }
                             IrisDesktopMenu {
@@ -918,16 +1058,18 @@ Item {
                     IrisText {
                         anchors.verticalCenter: parent.verticalCenter
                         text: nameLabel.label
-                        font.pixelSize: 12.5 * IrisStyle.typeScale
-                        font.weight: Font.DemiBold
+                        width: Math.min(implicitWidth, Math.round(260 * root.d))
+                        elide: Text.ElideRight
+                        font.pixelSize: IrisStyle.typeLabel
+                        font.weight: IrisStyle.weight(Font.DemiBold)
                     }
                     IrisText {
                         anchors.verticalCenter: parent.verticalCenter
                         visible: nameLabel.windowCount > 1
                         text: nameLabel.windowCount
                         color: IrisStyle.secondaryAccent
-                        font.pixelSize: 11.5 * IrisStyle.typeScale
-                        font.weight: Font.Bold
+                        font.pixelSize: IrisStyle.typeMeta
+                        font.weight: IrisStyle.weight(Font.Bold)
                         font.family: IrisStyle.fontNumbers
                         font.features: ({ "tnum": 1 })
                     }
@@ -952,8 +1094,8 @@ Item {
                     ? Math.round(Math.min(window.width - 24, windowsContent.implicitWidth + 20 * root.d))
                     : Math.round(Math.min(Math.max(200 * root.d, menuContent.implicitWidth + 12 * root.d), 260 * root.d))
                 height: Math.round(menu.activeContent.implicitHeight + (menu.mode === "windows" ? 20 : 12) * root.d)
-                readonly property real topClear: IrisFrame.inset("top") + 8 * root.d
-                readonly property real bottomClear: IrisFrame.inset("bottom") + 8 * root.d
+                readonly property real topClear: IrisFrame.safeInset("top") + 8 * root.d
+                readonly property real bottomClear: IrisFrame.safeInset("bottom") + 8 * root.d
                 x: Math.round(root.atLeft ? dock.x + dock.width + 8 * root.d
                     : root.atRight ? dock.x - width - 8 * root.d
                     : Math.max(window.menuLeftClear, Math.min(window.width - width - window.menuRightClear, window.menuAnchor.x - width / 2)))
@@ -974,7 +1116,14 @@ Item {
                 property var app: null
                 property var windows: []
                 function windowKey(entry: var): string { return String(entry?.niriWindowId ?? entry?._sourceKey ?? entry?.title ?? "") }
-                readonly property var windowKeys: menu.windows.map(entry => menu.windowKey(entry))
+                // In the order they sit on screen: by workspace, then by column along the strip.
+                function placeOf(entry: var): int {
+                    const w = (NiriService.windows ?? []).find(item => item.id === entry?.niriWindowId)
+                    const ws = (NiriService.allWorkspaces ?? []).find(item => item.id === w?.workspace_id)
+                    return Number(ws?.idx ?? 999) * 1000 + Number(w?.layout?.pos_in_scrolling_layout?.[0] ?? 999)
+                }
+                readonly property var windowKeys: menu.windows.slice().sort((a, b) => menu.placeOf(a) - menu.placeOf(b))
+                    .map(entry => menu.windowKey(entry))
                 property var shownKeys: []
                 onWindowKeysChanged: if (menu.windowKeys.join("\n") !== menu.shownKeys.join("\n")) menu.shownKeys = menu.windowKeys
                 property string mode: "menu"
@@ -1021,13 +1170,13 @@ Item {
                             Layout.fillWidth: true
                             text: AppSearch.lookupDesktopEntry(menu.app?.appId ?? "")?.name ?? (menu.app?.appId ?? "")
                             elide: Text.ElideRight
-                            font.pixelSize: 13 * IrisStyle.typeScale
-                            font.weight: Font.DemiBold
+                            font.pixelSize: IrisStyle.typeLabel
+                            font.weight: IrisStyle.weight(Font.DemiBold)
                         }
                         IrisText {
                             text: menu.windows.length === 1 ? Translation.tr("1 window") : Translation.tr("%1 windows").arg(menu.windows.length)
                             color: IrisStyle.muted
-                            font.pixelSize: 11.5 * IrisStyle.typeScale
+                            font.pixelSize: IrisStyle.typeMeta
                         }
                         IrisIconButton {
                             materialIcon: "add"
@@ -1055,13 +1204,27 @@ Item {
                                 readonly property var niriWindow: (NiriService.windows ?? []).find(w => w.id === card.win?.niriWindowId) ?? null
                                 readonly property var workspace: (NiriService.allWorkspaces ?? []).find(ws => ws.id === card.win?.niriWorkspaceId) ?? null
                                 readonly property bool minimized: card.win?.niriWindowId !== undefined && MinimizedWindows.isMinimized(card.win.niriWindowId)
+                                readonly property int column: Number(card.niriWindow?.layout?.pos_in_scrolling_layout?.[0] ?? 0)
+                                readonly property int columns: {
+                                    const ws = card.niriWindow?.workspace_id
+                                    let most = card.column
+                                    for (const w of NiriService.windows ?? [])
+                                        if (w.workspace_id === ws && !w.is_floating)
+                                            most = Math.max(most, Number(w.layout?.pos_in_scrolling_layout?.[0] ?? 0))
+                                    return most
+                                }
                                 width: windowsContent.cardWidth
                                 height: plate.height + Math.round(8 * root.d) + caption.implicitHeight
                                 hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor
+                                acceptedButtons: Qt.LeftButton | Qt.MiddleButton
                                 Accessible.role: Accessible.Button
                                 Accessible.name: String(card.win?.title ?? "")
-                                onClicked: {
+                                onClicked: mouse => {
+                                    if (mouse.button === Qt.MiddleButton) {
+                                        if (card.win?.niriWindowId !== undefined) NiriService.closeWindow(card.win.niriWindowId)
+                                        return
+                                    }
                                     const id = card.win?.niriWindowId
                                     if (CompositorService.isNiri && id !== undefined) {
                                         if (MinimizedWindows.isMinimized(id)) MinimizedWindows.restore(id)
@@ -1080,7 +1243,7 @@ Item {
                                     border.width: card.focusedWindow ? Math.max(2, Math.round(2 * root.d)) : 0
                                     border.color: IrisStyle.accent
                                     scale: card.pressed ? IrisStyle.pressScale(0.97) : 1
-                                    Behavior on color { ColorAnimation { duration: IrisStyle.duration(120) } }
+                                    Behavior on color { ColorAnimation { duration: IrisStyle.duration(120); easing.type: IrisStyle.feedbackEasing } }
                                     Behavior on scale { NumberAnimation { duration: IrisStyle.duration(110); easing.type: IrisStyle.feedbackEasing } }
 
                                     readonly property real aspect: {
@@ -1128,49 +1291,43 @@ Item {
                                                 }
                                             }
                                         }
-                                        Column {
-                                            id: skeleton
-                                            anchors.left: parent.left
-                                            anchors.right: parent.right
-                                            anchors.top: parent.top
-                                            anchors.topMargin: Math.round(17 * root.d)
-                                            anchors.leftMargin: Math.round(8 * root.d)
-                                            anchors.rightMargin: Math.round(8 * root.d)
-                                            spacing: Math.round(5 * root.d)
-                                            Repeater {
-                                                model: Math.max(1, Math.min(6, Math.floor((silhouette.height - 24 * root.d) / (8 * root.d))))
-                                                Rectangle {
-                                                    required property int index
-                                                    readonly property real share: 0.35 + ((plate.seed * (index + 3) * 7919) % 55) / 100
-                                                    width: Math.round(skeleton.width * share)
-                                                    height: Math.max(2, Math.round(3 * root.d))
-                                                    radius: height / 2
-                                                    color: index === 0 ? IrisStyle.fillActive : IrisStyle.fill
-                                                }
-                                            }
+                                        SmartAppIcon {
+                                            anchors.centerIn: parent
+                                            anchors.verticalCenterOffset: Math.round(5 * root.d)
+                                            icon: IrisPieces.appIcon(menu.app?.appId ?? "")
+                                            fallback: "application-x-executable"
+                                            iconSize: Math.round(Math.min(34, Math.max(20, silhouette.height * 0.42)) * root.d)
                                         }
                                     }
-                                    SmartAppIcon {
-                                        x: Math.round(silhouette.x + silhouette.width - width * 0.7)
-                                        y: Math.round(silhouette.y + silhouette.height - height * 0.7)
-                                        icon: IrisPieces.appIcon(menu.app?.appId ?? "")
-                                        fallback: "application-x-executable"
-                                        iconSize: Math.round(24 * root.d)
-                                    }
+                                    // Where the window sits in its workspace's strip: one mark per column, its own lit. The
+                                    // one thing a glimpse cannot show otherwise, and the thing that tells two alike apart.
                                     Row {
-                                        x: Math.round(silhouette.x + 6 * root.d)
-                                        y: Math.round(silhouette.y + silhouette.height - height - 6 * root.d)
-                                        spacing: Math.round(4 * root.d)
+                                        anchors.horizontalCenter: parent.horizontalCenter
+                                        y: Math.round(plate.height - plate.room / 2 - height / 2)
+                                        spacing: Math.round(3 * root.d)
                                         MaterialSymbol {
                                             visible: card.niriWindow?.is_floating ?? false
+                                            anchors.verticalCenter: parent.verticalCenter
                                             text: "picture_in_picture"
-                                            iconSize: Math.round(12 * root.d)
+                                            iconSize: Math.round(11 * root.d)
                                             color: IrisStyle.subtext
+                                        }
+                                        Repeater {
+                                            model: card.niriWindow?.is_floating ? 0 : Math.min(9, card.columns)
+                                            Rectangle {
+                                                required property int index
+                                                readonly property bool own: index + 1 === card.column
+                                                anchors.verticalCenter: parent ? parent.verticalCenter : undefined
+                                                width: Math.round((own ? 10 : 5) * root.d)
+                                                height: Math.max(3, Math.round(4 * root.d))
+                                                radius: height / 2
+                                                color: own ? (card.focusedWindow ? IrisStyle.accent : IrisStyle.text) : IrisStyle.fillActive
+                                            }
                                         }
                                         Rectangle {
                                             visible: card.niriWindow?.is_urgent ?? false
                                             anchors.verticalCenter: parent.verticalCenter
-                                            width: Math.round(7 * root.d)
+                                            width: Math.round(6 * root.d)
                                             height: width
                                             radius: width / 2
                                             color: IrisStyle.secondaryAccent
@@ -1185,12 +1342,12 @@ Item {
                                         color: closeHover.hovered ? IrisStyle.danger : IrisStyle.veilHeavy
                                         opacity: card.containsMouse && CompositorService.isNiri ? 1 : 0
                                         visible: opacity > 0
-                                        Behavior on opacity { NumberAnimation { duration: IrisStyle.duration(120) } }
+                                        Behavior on opacity { NumberAnimation { duration: IrisStyle.duration(120); easing.type: IrisStyle.feedbackEasing } }
                                         MaterialSymbol {
                                             anchors.centerIn: parent
                                             text: "close"
                                             iconSize: Math.round(13 * root.d)
-                                            color: IrisStyle.text
+                                            color: IrisStyle.onMedia
                                         }
                                         HoverHandler { id: closeHover; cursorShape: Qt.PointingHandCursor }
                                         TapHandler {
@@ -1214,18 +1371,20 @@ Item {
                                         elide: Text.ElideRight
                                         horizontalAlignment: Text.AlignHCenter
                                         color: card.focusedWindow ? IrisStyle.text : IrisStyle.subtext
-                                        font.pixelSize: 11.5 * IrisStyle.typeScale
+                                        font.pixelSize: IrisStyle.typeMeta
                                         font.weight: card.focusedWindow ? Font.DemiBold : Font.Medium
                                     }
                                     IrisText {
                                         width: parent.width
                                         visible: text.length > 0
                                         text: card.minimized ? Translation.tr("Minimised")
-                                            : card.workspace ? (card.workspace.name || Translation.tr("Workspace %1").arg(card.workspace.idx)) : ""
+                                            : !card.workspace ? ""
+                                            : (card.workspace.name || Translation.tr("Workspace %1").arg(card.workspace.idx))
+                                                + (card.columns > 1 && card.column > 0 ? " · " + Translation.tr("%1 of %2").arg(card.column).arg(card.columns) : "")
                                         elide: Text.ElideRight
                                         horizontalAlignment: Text.AlignHCenter
                                         color: IrisStyle.muted
-                                        font.pixelSize: 10.5 * IrisStyle.typeScale
+                                        font.pixelSize: IrisStyle.typeFootnote
                                     }
                                 }
                             }
@@ -1270,7 +1429,7 @@ Item {
                                 text: menuRow.label
                                 elide: Text.ElideRight
                                 color: menuRow.danger ? IrisStyle.danger : IrisStyle.text
-                                font.pixelSize: 12.5 * IrisStyle.typeScale
+                                font.pixelSize: IrisStyle.typeLabel
                             }
                         }
                     }
@@ -1286,14 +1445,14 @@ Item {
                             Layout.fillWidth: true
                             text: AppSearch.lookupDesktopEntry(menu.app?.appId ?? "")?.name ?? (menu.app?.appId ?? "")
                             elide: Text.ElideRight
-                            font.pixelSize: 13 * IrisStyle.typeScale
-                            font.weight: Font.DemiBold
+                            font.pixelSize: IrisStyle.typeLabel
+                            font.weight: IrisStyle.weight(Font.DemiBold)
                         }
                         IrisText {
                             text: (menu.windows?.length ?? 0) === 0 ? Translation.tr("Not running")
                                 : (menu.windows.length === 1 ? Translation.tr("1 window") : Translation.tr("%1 windows").arg(menu.windows.length))
                             color: IrisStyle.muted
-                            font.pixelSize: 11.5 * IrisStyle.typeScale
+                            font.pixelSize: IrisStyle.typeMeta
                         }
                     }
                     Repeater {
@@ -1354,4 +1513,20 @@ Item {
                 }
             }
         }
+
+    // A slot's hover plate: a rounded square around the icon, the same radius on every corner, 4·d from the lane's
+    // inner edge like the lane itself. The Dock's ends make room for it (dock.padding), so it never meets the curve.
+    component HoverPlate: Rectangle {
+        id: plate
+        property real lift: 0
+        property bool lit: false
+        visible: !root.magnify
+        width: root.plateSize
+        height: plate.width
+        radius: IrisStyle.iconRadius(plate.width)
+        x: root.edgeX(parent.width, plate.width, 4 * root.d + plate.lift)
+        y: root.edgeY(parent.height, plate.height, 4 * root.d + plate.lift)
+        color: plate.lit ? IrisStyle.fill : ColorUtils.applyAlpha(IrisStyle.text, 0)
+        Behavior on color { ColorAnimation { duration: IrisStyle.duration(120); easing.type: IrisStyle.feedbackEasing } }
+    }
 }

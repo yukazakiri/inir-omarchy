@@ -146,7 +146,7 @@ ContentPage {
                         colorRegenTimer.restart()
                     }
                     options: [
-                        { displayName: Translation.tr("Sleek"), value: "Inir" },
+                        { displayName: "iNiR", value: "Inir" },
                         { displayName: Translation.tr("Text (TUI)"), value: "InirTUI" }
                     ]
                 }
@@ -173,6 +173,30 @@ ContentPage {
                 }
                 StyledToolTip {
                     text: Translation.tr("Apply Material You colors to YouTube Music Desktop App")
+                }
+            }
+            SettingsSwitch {
+                buttonIcon: "music_note"
+                text: Translation.tr("LiMusic")
+                checked: Config.options?.appearance?.wallpaperTheming?.enableLimusic ?? false
+                onCheckedChanged: {
+                    Config.setNestedValue("appearance.wallpaperTheming.enableLimusic", checked);
+                    colorRegenTimer.restart();
+                }
+                StyledToolTip {
+                    text: Translation.tr("LiMusic follows your wallpaper colours, from the next time it opens")
+                }
+            }
+            SettingsSwitch {
+                buttonIcon: "terminal"
+                text: Translation.tr("Claude Code")
+                checked: Config.options?.appearance?.wallpaperTheming?.enableClaudeCode ?? false
+                onCheckedChanged: {
+                    Config.setNestedValue("appearance.wallpaperTheming.enableClaudeCode", checked);
+                    colorRegenTimer.restart();
+                }
+                StyledToolTip {
+                    text: Translation.tr("Adds iNiR themes to Claude Code's theme list: two follow your wallpaper, two keep a fixed Monokai palette")
                 }
             }
             SettingsSwitch {

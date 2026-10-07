@@ -56,6 +56,7 @@ if [[ ! -d "$REPO_ROOT" || ! -f "$REPO_ROOT/shell.qml" ]]; then
     exit 1
 fi
 
+INVOKED_FROM="$PWD"
 cd "$REPO_ROOT"
 
 # Handle Ctrl+C gracefully
@@ -228,6 +229,8 @@ sync_launcher_from_repo() {
     chmod +x "$launcher_source"
     [[ "$install_mode" == "repo-link" ]] || chmod +x "$launcher_target"
     ensure_launcher_path_in_shells "$XDG_BIN_HOME"
+    # Tab completion in the person's own shell: a link to the runtime's file, never over one of theirs.
+    "$launcher_target" completions install "$(basename "${SHELL:-bash}")" >/dev/null 2>&1 || true
     printf '%s\n' "$launcher_target"
 }
 
@@ -1329,37 +1332,34 @@ run_config() {
         return 0
     fi
 
-    # Show current key settings
-    local panel_family="ii"
-    local bar_position="top"
-    local clock_format="12h"
-    local search_engine="google"
-    local animations="true"
-    local blur="true"
-
+    # Keys as Config.qml names them; a missing key shows the fresh-install value from defaults/config.json.
+    local panel_family="ii" global_style="?" bar_place="?" clock_format="?" search_url="?"
     if command -v jq &>/dev/null; then
-        panel_family=$(jq -r '.panelFamily // "ii"' "$config_file" 2>/dev/null)
-        bar_position=$(jq -r '.bar?.position // "top"' "$config_file" 2>/dev/null)
-        clock_format=$(jq -r '.time?.format // "12h"' "$config_file" 2>/dev/null)
-        search_engine=$(jq -r '.search?.engine // "google"' "$config_file" 2>/dev/null)
-        animations=$(jq -r '.animations?.enabled // true' "$config_file" 2>/dev/null)
-        blur=$(jq -r '.appearance?.blur // true' "$config_file" 2>/dev/null)
+        local defaults="${REPO_ROOT}/defaults/config.json"
+        # Not jq's `//`: it skips false too, and a switch that is off is a value.
+        read_key() { jq -r --slurpfile d "$defaults" "[($1), (\$d[0] | $1)] | map(select(. != null)) | if length > 0 then .[0] else \"?\" end" "$config_file" 2>/dev/null; }
+        panel_family=$(read_key '.panelFamily')
+        global_style=$(read_key '.appearance.globalStyle')
+        clock_format=$(read_key '.time.format')
+        search_url=$(read_key '.search.engineBaseUrl')
+        if [[ "$(read_key '.bar.vertical')" == "true" ]]; then bar_place="vertical"
+        elif [[ "$(read_key '.bar.bottom')" == "true" ]]; then bar_place="bottom"
+        else bar_place="top"; fi
     fi
 
     tui_summary_card "Current Settings" \
         "Panel Family:$panel_family" \
-        "Bar Position:$bar_position" \
+        "Global Style (ii):$global_style" \
+        "Bar (ii):$bar_place" \
         "Clock Format:$clock_format" \
-        "Search Engine:$search_engine" \
-        "Animations:$animations" \
-        "Blur:$blur"
+        "Search:${search_url%%\?*}"
 
     echo ""
 
     local action
     action=$(tui_choose_rich "Configuration" \
         "${ICON_ARROW}|Edit in Editor|Open config.json in your editor" \
-        "${ICON_DOT}|Panel Family|Switch between ii and waffle" \
+        "${ICON_DOT}|Panel Family|Switch between Material ii, Waffle and iRiS" \
         "${ICON_DOT}|Open Config Dir|Open the config directory" \
         "${ICON_DOT}|Reset to Defaults|Restore default configuration" \
         "${ICON_CIRCLE}|Back|Return to main menu")
@@ -1369,20 +1369,21 @@ run_config() {
             local editor="${EDITOR:-${VISUAL:-nano}}"
             tui_info "Opening $config_file with $editor..."
             "$editor" "$config_file"
-            tui_success "Config saved"
-            tui_info "Run 'inir restart' to apply changes"
+            tui_success "Config saved; a running shell applies it as soon as the file changes"
             ;;
         "Panel Family")
             echo ""
             local new_family
-            new_family=$(tui_choose "Select panel family:" "ii" "waffle")
+            new_family=$(tui_choose "Select panel family:" "ii" "waffle" "iris")
             if [[ -n "$new_family" && "$new_family" != "$panel_family" ]]; then
-                if command -v jq &>/dev/null; then
+                # A running shell owns the config in memory and would overwrite a direct write: ask it.
+                if bash "${REPO_ROOT}/scripts/inir" panelFamily set "$new_family" &>/dev/null; then
+                    tui_success "Panel family set to: $new_family"
+                elif command -v jq &>/dev/null; then
                     local tmp_file
                     tmp_file=$(mktemp)
                     jq --arg f "$new_family" '.panelFamily = $f' "$config_file" > "$tmp_file" && mv "$tmp_file" "$config_file"
-                    tui_success "Panel family set to: $new_family"
-                    tui_info "Run 'inir restart' to apply"
+                    tui_success "Panel family set to: $new_family (applies when the shell starts)"
                 else
                     tui_warn "jq required to edit config programmatically"
                     tui_info "Edit $config_file manually"
@@ -1405,8 +1406,7 @@ run_config() {
                 if [[ -f "${REPO_ROOT}/defaults/config.json" ]]; then
                     cp "$config_file" "${config_file}.backup.$(date +%Y%m%d%H%M%S)"
                     cp "${REPO_ROOT}/defaults/config.json" "$config_file"
-                    tui_success "Config reset to defaults (backup created)"
-                    tui_info "Run 'inir restart' to apply"
+                    tui_success "Config reset to defaults (backup created); a running shell applies it now"
                 else
                     tui_error "Default config not found"
                 fi
@@ -1650,82 +1650,52 @@ run_logs() {
     tui_title "Runtime Logs"
     echo ""
 
-    local log_sources=()
-    local log_labels=()
+    # `inir logs` owns the shell's log; this menu only picks a view of it.
+    local inir_cmd
+    inir_cmd=$(command -v inir 2>/dev/null || echo "${REPO_ROOT}/scripts/inir")
+    local labels=("Shell: what went wrong since it started" "Shell: last 200 lines")
+    command -v journalctl &>/dev/null && labels+=("Niri: last 100 lines")
+    labels+=("Back")
 
-    # Quickshell logs
-    local qs_log="${XDG_STATE_HOME}/quickshell/log"
-    local qs_log_alt="${XDG_CACHE_HOME}/quickshell/log"
-    local journal_available=false
-    command -v journalctl &>/dev/null && journal_available=true
-
-    [[ -f "$qs_log" ]] && log_sources+=("$qs_log") && log_labels+=("Quickshell log (state)")
-    [[ -f "$qs_log_alt" ]] && log_sources+=("$qs_log_alt") && log_labels+=("Quickshell log (cache)")
-
-    if $journal_available; then
-        log_sources+=("__journal_qs__")
-        log_labels+=("Journal: quickshell (last 200 lines)")
-        log_sources+=("__journal_niri__")
-        log_labels+=("Journal: niri (last 100 lines)")
-    fi
-
-    if [[ ${#log_sources[@]} -eq 0 ]]; then
-        tui_warn "No log sources found"
-        tui_info "Start iNiR first: inir run"
-        echo ""
-        read -rp "Press Enter to continue..."
-        return 0
-    fi
-
-    log_labels+=("Back")
     local choice
-    choice=$(tui_choose "Select log source:" "${log_labels[@]}")
-
-    [[ "$choice" == "Back" ]] && return 0
-
-    # Find matching source
-    local source_idx=0
-    for i in "${!log_labels[@]}"; do
-        if [[ "${log_labels[$i]}" == "$choice" ]]; then
-            source_idx=$i
-            break
-        fi
-    done
-
-    local source="${log_sources[$source_idx]}"
-
+    choice=$(tui_choose "Select log:" "${labels[@]}")
     echo ""
-    case "$source" in
-        __journal_qs__)
-            tui_info "Showing last 200 lines from journalctl..."
-            if $HAS_GUM; then
-                journalctl --user -u quickshell --no-pager -n 200 2>/dev/null | gum pager
-            else
-                journalctl --user -u quickshell --no-pager -n 200 2>/dev/null | less
-            fi
-            ;;
-        __journal_niri__)
-            tui_info "Showing last 100 lines from niri journal..."
-            if $HAS_GUM; then
-                journalctl --user -u niri --no-pager -n 100 2>/dev/null | gum pager
-            else
-                journalctl --user -u niri --no-pager -n 100 2>/dev/null | less
-            fi
-            ;;
-        *)
-            tui_info "Viewing: $source"
-            if $HAS_GUM; then
-                gum pager < "$source"
-            else
-                less "$source"
-            fi
-            ;;
+    local pager=(less -R)
+    $HAS_GUM && pager=(gum pager)
+    case "$choice" in
+        "Shell: what went wrong since it started") bash "$inir_cmd" logs --issues 2>&1 | "${pager[@]}" ;;
+        "Shell: last 200 lines") bash "$inir_cmd" logs -n 200 2>&1 | "${pager[@]}" ;;
+        "Niri: last 100 lines") journalctl --user -u niri --no-pager -n 100 2>/dev/null | "${pager[@]}" ;;
+        *) return 0 ;;
     esac
 }
 
 ###############################################################################
-# Install completion — useful next steps without making first-run feel like a log dump
+# Install completion: short, and it ends on the one thing nobody may skip
 ###############################################################################
+show_reboot_notice() {
+    local reasons=("${INIR_REBOOT_REASONS[@]}") reason
+    local bar="══════════════════════════════════════════════════════════════"
+    echo ""
+    echo -e "  ${STY_YELLOW}${STY_BOLD}╔${bar}╗${STY_RST}"
+    printf "  ${STY_YELLOW}${STY_BOLD}║%-62s║${STY_RST}\n" ""
+    printf "  ${STY_YELLOW}${STY_BOLD}║%-62s║${STY_RST}\n" "    RESTART YOUR COMPUTER BEFORE USING iNiR"
+    printf "  ${STY_YELLOW}${STY_BOLD}║%-62s║${STY_RST}\n" "    Not a suggestion. Half of it isn't live until you do."
+    printf "  ${STY_YELLOW}${STY_BOLD}║%-62s║${STY_RST}\n" ""
+    echo -e "  ${STY_YELLOW}${STY_BOLD}╚${bar}╝${STY_RST}"
+    if [[ ${#reasons[@]} -gt 0 ]]; then
+        echo ""
+        echo -e "    ${STY_BOLD}Why:${STY_RST}"
+        for reason in "${reasons[@]}"; do
+            echo "$reason" | fold -s -w 64 | sed '1s/^/    • /; 2,$s/^/      /'
+        done
+    fi
+    echo ""
+    echo -e "    Then pick ${STY_BOLD}Niri${STY_RST} at the login screen and you're in."
+    echo -e "    ${STY_FAINT}Reboot now:${STY_RST} ${STY_BOLD}systemctl reboot${STY_RST}"
+    echo ""
+}
+
 show_install_completion() {
     local version distro package_manager host gpu ram compositor
     version="$(get_repo_version)"
@@ -1737,10 +1707,7 @@ show_install_completion() {
     ram="${DETECTED_RAM_GIB:-?} GiB"
     compositor="${DETECTED_DE:-${XDG_CURRENT_DESKTOP:-not detected}}"
 
-    tui_alert "success" "iNiR is ready" \
-        "Version ${version} is installed. You can start the shell now or begin with a clean Niri login."
-
-    tui_summary_card "This install" \
+    tui_summary_card "iNiR ${version}" \
         "Distro:${distro}" \
         "Packages:${package_manager}" \
         "Host:${host}" \
@@ -1748,18 +1715,15 @@ show_install_completion() {
         "RAM:${ram}" \
         "Session:${compositor}"
 
-    tui_section_start "Good next moves"
-    if [[ -n "${NIRI_SOCKET:-}" ]]; then
-        tui_list_item "Start/reload now: inir restart"
-    else
-        tui_list_item "Log out, choose Niri in your login screen, then sign back in"
-    fi
-    tui_list_item "Open Settings: inir settings"
-    tui_list_item "Check health: inir doctor"
-    tui_list_item "See exactly what is installed: inir status"
+    tui_section_start "After that"
+    tui_list_item "Super+/ lists every shortcut, Super+, opens Settings"
+    tui_list_item "Something off? inir doctor, then inir logs"
+    tui_list_item "Regret it? ./setup rollback"
     tui_section_end
 
-    tui_dim "If an experiment goes sideways later: ./setup rollback"
+    if [[ "${IS_UPDATE}" != "true" || ${#INIR_REBOOT_REASONS[@]} -gt 0 ]]; then
+        show_reboot_notice
+    fi
 }
 
 show_update_completion() {
@@ -1779,6 +1743,8 @@ show_update_completion() {
 ###############################################################################
 run_install() {
     detect_distro
+    # Filled by the install steps with what only a fresh login or a reboot applies.
+    INIR_REBOOT_REASONS=()
 
     # Greeting & system info
     source ./sdata/subcmd-install/0.greeting.sh
@@ -2304,6 +2270,12 @@ refresh_sddm_theme_on_update() {
     if ! command -v sddm >/dev/null 2>&1; then
         return 0
     fi
+    # SDDM installed but not the login screen: the person chose another display manager. An update
+    # leaves it alone (re-enabling SDDM here put some machines on a black screen at every update).
+    if command -v systemctl >/dev/null 2>&1 && [[ -d /run/systemd/system ]] \
+            && ! systemctl is-enabled sddm.service >/dev/null 2>&1; then
+        return 0
+    fi
 
     # Always refresh on update — settings like InputMethod may have changed
     local auto_apply_mode="yes"
@@ -2315,7 +2287,7 @@ refresh_sddm_theme_on_update() {
     echo ""
     tui_info "Refreshing ii-pixel SDDM theme..."
 
-    if ! extras_install_sddm_theme "$auto_apply_mode"; then
+    if ! extras_install_sddm_theme "$auto_apply_mode" no keep; then
         tui_warn "SDDM theme refresh failed — you may need to run manually:"
         tui_dim "  sudo bash ${REPO_ROOT}/scripts/sddm/install-pixel-sddm.sh"
     fi
@@ -2345,6 +2317,14 @@ run_update() {
         tui_warn "On branch '$current_branch' (non-release). Updates will track this branch."
     else
         tui_info "Branch: $tracked_branch"
+    fi
+
+    tui_info "Repo: $REPO_ROOT"
+    local invoked_from="${INIR_INVOKED_FROM:-${INVOKED_FROM:-$PWD}}"
+    if [[ "$invoked_from" != "$REPO_ROOT" && -d "${invoked_from}/.git" && -f "${invoked_from}/shell.qml" ]]; then
+        tui_warn "Updating that repo, not the one you are standing in:"
+        tui_dim "    you are in: $invoked_from"
+        tui_dim "    repo path comes from ~/.config/inir/version.json"
     fi
 
     local installed_mode=$(get_installed_install_mode)
@@ -2444,12 +2424,29 @@ run_update() {
 
             # Pull changes
             _step_phase_start 1 "Pulling changes"
-            if ! git -C "$REPO_ROOT" pull --ff-only origin "$tracked_branch" 2>/dev/null; then
+            local pull_log
+            pull_log="$(mktemp)"
+            if ! LC_ALL=C git -C "$REPO_ROOT" pull --ff-only origin "$tracked_branch" 2>"$pull_log"; then
                 _step_phase_fail "Git pull failed"
-                tui_error "Git pull from origin/${tracked_branch} failed. You may have local changes."
-                tui_info "Try: git stash && ./setup update"
+                tui_error "Git pull from origin/${tracked_branch} failed in ${REPO_ROOT}"
+                if [[ -s "$pull_log" ]]; then
+                    echo ""
+                    while IFS= read -r line; do
+                        tui_dim "    $line"
+                    done < "$pull_log"
+                    echo ""
+                fi
+                if grep -qi "untracked working tree files" "$pull_log"; then
+                    tui_info "Untracked files are in the way. Move or remove the files listed above,"
+                    tui_info "or stash them too: git -C \"$REPO_ROOT\" stash -u"
+                    tui_dim "    (plain 'git stash' never touches untracked files)"
+                else
+                    tui_info "Try: git -C \"$REPO_ROOT\" stash && ./setup update"
+                fi
+                rm -f "$pull_log"
                 return 1
             fi
+            rm -f "$pull_log"
             _step_phase_done "Pulled changes from origin/${tracked_branch}"
 
             # Re-exec to pick up updated library code from the pull.
@@ -2913,9 +2910,13 @@ run_update() {
         if inir_user_service_is_masked; then
             _step_phase_done "Shell restart skipped: inir.service is masked"
         elif command -v systemctl >/dev/null 2>&1 && systemctl --user cat inir.service >/dev/null 2>&1; then
-            nohup systemctl --user restart inir.service >/dev/null 2>&1 &
-            disown
-            _step_phase_done "Shell restart triggered"
+            restart_shell_and_verify 30
+            case $? in
+                0) _step_phase_done "Shell restarted on the new version" ;;
+                1) _step_phase_done "The shell did not load the new version"
+                   tui_warn "Run './setup rollback' to go back to the previous version" ;;
+                *) _step_phase_done "Shell restart requested; 'inir logs' shows how it went" ;;
+            esac
         elif [[ -x "${II_TARGET}/scripts/inir" ]]; then
             nohup bash "${II_TARGET}/scripts/inir" restart -c "${II_TARGET}" >/dev/null 2>&1 &
             disown

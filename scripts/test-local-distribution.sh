@@ -555,9 +555,8 @@ schema_checks = {
         'Config.setNestedValue("iris.modules.desktopWidgets", value === "on")'
     ]),
     "iRiS lightweight background retains bare-desktop menu": all(fragment in iris_background for fragment in [
-        "IrisDesktopMenu {", "acceptedButtons: Qt.RightButton | Qt.LeftButton",
-        'Config.setNestedValue("iris.modules.desktopWidgets", true)'
-    ]) and 'component: IrisBackground {}' in (root / "modules/iris/critical/ShellIrisCriticalPanels.qml").read_text(encoding="utf-8")
+        "IrisDesktopMenu {", "acceptedButtons: Qt.RightButton | Qt.LeftButton", "IrisDesktopActions.menu("
+    ]) and 'Config.setNestedValue("iris.modules.desktopWidgets", true)' in (root / "modules/iris/background/IrisDesktopActions.qml").read_text(encoding="utf-8") and 'component: IrisBackground {}' in (root / "modules/iris/critical/ShellIrisCriticalPanels.qml").read_text(encoding="utf-8")
         and 'component: Background {}' in iris_panels,
     "wizard style catalog covers all ii global styles": all(preset in wizard for preset in [
         'id: "material"', 'id: "cards"', 'id: "aurora"', 'id: "inir"',
@@ -731,9 +730,24 @@ if grep -Fq 'rpmfusion-nonfree-release' "$fedora_installer"; then
     printf 'FAIL: Fedora installer enables RPM Fusion Nonfree without an iNiR dependency requiring it\n' >&2
     exit 1
 fi
+setups_script="$runtime_root/sdata/subcmd-install/2.setups.sh"
+# Install keeps a login screen the machine already has: SDDM takes over only when there is none or the
+# person says so on a first install (#279). Disabling GDM & co. outside that decision put hybrid laptops
+# on a black screen after every reinstall.
+if ! grep -Fq 'take_over=false' "$setups_script" \
+        || ! grep -Fq 'if [[ "$take_over" == true ]]; then' "$setups_script" \
+        || ! grep -Fq 'extras_install_sddm_theme "yes" no' "$runtime_root/sdata/subcmd-install/3.files.sh"; then
+    printf 'FAIL: install can switch an existing display manager to SDDM without asking\n' >&2
+    exit 1
+fi
 sddm_installer="$runtime_root/scripts/sddm/install-pixel-sddm.sh"
-if grep -Eq '^[[:space:]]*DisplayServer=' "$sddm_installer" \
-        || grep -Eq '^[[:space:]]*InputMethod=' "$sddm_installer"; then
+# The theme drop-in holds only the theme; a display server is set only by the separate, chosen greeter
+# drop-in (98-inir-greeter.conf, Wayland with Niri), and InputMethod never.
+sddm_theme_conf="$(awk '/^desired_conf="/,/"$/' "$sddm_installer")"
+if grep -Eq 'DisplayServer=|InputMethod=' <<<"$sddm_theme_conf" \
+        || grep -Eq '^[[:space:]]*InputMethod=' "$sddm_installer" \
+        || [[ "$(grep -c 'DisplayServer=' "$sddm_installer")" != "1" ]] \
+        || ! grep -Fq 'GREETER_MODE="${INIR_SDDM_GREETER:-keep}"' "$sddm_installer"; then
     printf 'FAIL: ii-pixel theme installer overrides distro-owned SDDM greeter backend/input policy\n' >&2
     exit 1
 fi
@@ -1441,13 +1455,13 @@ if ! grep -Fq 'bool cardEdgeMode = ubuf.presentationMode > 1.5 && ubuf.presentat
         || ! grep -Fq 'background.widgets.mediaControls.organicPulse' "$visualizer_settings" \
         || ! grep -Fq 'background.widgets.mediaControls.organicGlow' "$visualizer_settings" \
         || ! grep -Fq 'background.widgets.mediaControls.organicRange' "$visualizer_settings" \
-        || ! grep -Fq 'component MediaVizMetric: ColumnLayout' "$media_widget" \
-        || ! grep -Fq 'background.widgets.mediaControls.visualizerOpacity' "$media_widget" \
-        || ! grep -Fq 'background.widgets.mediaControls.visualizerRange' "$media_widget" \
-        || ! grep -Fq 'background.widgets.mediaControls.visualizerSmoothing' "$media_widget" \
-        || ! grep -Fq 'background.widgets.mediaControls.visualizerBarCount' "$media_widget" \
-        || ! grep -Fq 'background.widgets.mediaControls.visualizerFrequencyProfile' "$media_widget" \
-        || ! grep -Fq 'background.widgets.mediaControls.visualizerAccentStrength' "$media_widget" \
+        || ! grep -Fq 'component VizSlider: WidgetQuickSlider' "$media_widget" \
+        || ! grep -Fq 'key: "visualizerOpacity"' "$media_widget" \
+        || ! grep -Fq 'key: "visualizerRange"' "$media_widget" \
+        || ! grep -Fq 'key: "visualizerSmoothing"' "$media_widget" \
+        || ! grep -Fq 'key: "visualizerBarCount"' "$media_widget" \
+        || ! grep -Fq 'vizPath + "visualizerFrequencyProfile"' "$media_widget" \
+        || ! grep -Fq 'key: "visualizerAccentStrength"' "$media_widget" \
         || ! grep -Fq 'organicCoverUnderlap' "$visualizer_widget" \
         || grep -Fq 'organicInnerGap' "$visualizer_widget" \
         || ! grep -Fq 'background.widgets.visualizer.organicCoverSize' "$visualizer_widget" \
@@ -1461,7 +1475,7 @@ if ! grep -Fq 'bool cardEdgeMode = ubuf.presentationMode > 1.5 && ubuf.presentat
         || ! grep -Fq 'root.paletteMode === "album"' "$visualizer_widget" \
         || ! grep -Fq 'id: albumArtworkQuantizer' "$visualizer_widget" \
         || ! grep -Fq 'organicSensitivitySetting <= 0.4' "$visualizer_widget" \
-        || ! grep -Fq 'labelText: Translation.tr("Smoothing")' "$visualizer_widget" \
+        || ! grep -Fq 'title: Translation.tr("Smoothing"); key: "smoothing"' "$visualizer_widget" \
         || ! grep -Fq 'background.widgets.visualizer.smoothing' "$visualizer_widget" \
         || grep -Fq 'background.widgets.mediaControls.' "$visualizer_widget" \
         || ! grep -Fq 'Idle motion' "$visualizer_settings"; then
@@ -2043,14 +2057,35 @@ if command -v python3 &>/dev/null && [[ -f "$runtime_root/scripts/lib/generate-i
     step "IPC registry freshness"
     python3 "$runtime_root/scripts/lib/generate-ipc-registry.py" --check
 
+    step "QML parses on Qt 6.10 and older"
+    python3 "$runtime_root/scripts/test-qml-qt-compat.py"
+
+    step "QML components that parse and fail to load"
+    python3 "$runtime_root/scripts/test-qml-pitfalls.py"
+
     step "iRiS style tokens"
     python3 "$runtime_root/scripts/test-iris-style-tokens.py"
+
+    step "Auto light/dark reads the wallpaper's brightness"
+    python3 "$runtime_root/scripts/test-wallpaper-mode.py"
+
+    step "Terminal prose reads and nothing outshines it"
+    python3 "$runtime_root/scripts/test-terminal-palette.py"
 
     step "iRiS defaults"
     python3 "$runtime_root/scripts/test-iris-defaults.py"
 
+    step "iRiS anime layer"
+    python3 "$runtime_root/scripts/test-iris-anime-layer.py"
+
     step "iRiS performance contract"
     python3 "$runtime_root/scripts/test-iris-performance-contract.py"
+
+    step "niri config rules and flags"
+    python3 "$runtime_root/scripts/test-niri-config-rules.py"
+
+    step "niri animation presets"
+    python3 "$runtime_root/scripts/test-niri-animation-presets.py"
 fi
 
 if [[ "$run_runtime" == true ]]; then

@@ -55,7 +55,26 @@ def load_generator_colors(scss_path, palette_json_path, terminal_json_path):
     # Explicit contracts should win over SCSS compatibility values.
     colors.update(palette_colors)
     colors.update(terminal_colors)
+    # Selection is a tint of the accent under the text, not the foreground inverted into a full-strength block;
+    # inactive tabs sit on the background (term8 under term7 measured 1.1:1).
+    term0, term15 = colors.get("term0", "#282828"), colors.get("term15", "#EBDBB2")
+    primary = colors.get("primary", "#458588")
+    factor = 0.35
+    while factor > 0.05 and contrast_hex(term15, blend_hex(term0, primary, factor)) < 4.5:
+        factor -= 0.03
+    colors.setdefault("selectionBg", blend_hex(term0, primary, factor))
+    colors.setdefault("tabInactiveBg", blend_hex(term0, term15, 0.06))
     return colors
+
+
+def contrast_hex(a, b):
+    def lum(h):
+        h = h.lstrip("#")
+        c = [int(h[i:i + 2], 16) / 255 for i in (0, 2, 4)]
+        c = [x / 12.92 if x <= 0.04045 else ((x + 0.055) / 1.055) ** 2.4 for x in c]
+        return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]
+    la, lb = lum(a), lum(b)
+    return (max(la, lb) + 0.05) / (min(la, lb) + 0.05)
 
 
 def blend_hex(color1, color2, factor=0.5):
@@ -109,8 +128,8 @@ def generate_kitty_config(colors, output_path):
 # The basic colors
 foreground              {colors.get("term15", "#EBDBB2")}
 background              {colors.get("term0", "#282828")}
-selection_foreground    {colors.get("term0", "#282828")}
-selection_background    {colors.get("term15", "#EBDBB2")}
+selection_foreground    {colors.get("term15", "#EBDBB2")}
+selection_background    {colors["selectionBg"]}
 
 # Cursor colors
 cursor                  {colors.get("term15", "#EBDBB2")}
@@ -127,8 +146,8 @@ bell_border_color       {colors.get("term1", "#CC241D")}
 # Tab bar colors
 active_tab_foreground   {colors.get("onPrimary", "#FFFFFF")}
 active_tab_background   {colors.get("primary", "#458588")}
-inactive_tab_foreground {colors.get("term7", "#A89984")}
-inactive_tab_background {colors.get("term8", "#928374")}
+inactive_tab_foreground {colors.get("term7", "#A89984") if contrast_hex(colors.get("term7", "#A89984"), colors["tabInactiveBg"]) >= 4.5 else colors.get("term15", "#EBDBB2")}
+inactive_tab_background {colors["tabInactiveBg"]}
 tab_bar_background      {colors.get("term0", "#282828")}
 
 # The 16 terminal colors
@@ -376,8 +395,8 @@ text   = '{colors.get("term0", "#282828")}'
 cursor = '{colors.get("term15", "#EBDBB2")}'
 
 [colors.selection]
-text       = '{colors.get("term0", "#282828")}'
-background = '{colors.get("term15", "#EBDBB2")}'
+text       = '{colors.get("term15", "#EBDBB2")}'
+background = '{colors["selectionBg"]}'
 
 [colors.normal]
 black   = '{colors.get("term0", "#282828")}'
@@ -456,8 +475,8 @@ bright6={colors.get("term14", "#8EC07C")[1:]}  # bright cyan
 bright7={colors.get("term15", "#EBDBB2")[1:]}  # bright white
 
 ## Cursor and selection colors
-selection-foreground={colors.get("term0", "#282828")[1:]}
-selection-background={colors.get("term15", "#EBDBB2")[1:]}
+selection-foreground={colors.get("term15", "#EBDBB2")[1:]}
+selection-background={colors["selectionBg"][1:]}
 jump-labels={colors.get("term0", "#282828")[1:]} {colors.get("term3", "#D79921")[1:]}
 urls={colors.get("term4", "#458588")[1:]}
 """
@@ -492,8 +511,8 @@ return {{
   cursor_fg = '{colors.get("term0", "#282828")}',
   cursor_border = '{colors.get("term15", "#EBDBB2")}',
 
-  selection_fg = '{colors.get("term0", "#282828")}',
-  selection_bg = '{colors.get("term15", "#EBDBB2")}',
+  selection_fg = '{colors.get("term15", "#EBDBB2")}',
+  selection_bg = '{colors["selectionBg"]}',
 
   scrollbar_thumb = '{colors.get("term8", "#928374")}',
   split = '{colors.get("term8", "#928374")}',
@@ -584,8 +603,8 @@ foreground = {colors.get("term15", "#EBDBB2")}
 cursor-color = {colors.get("term15", "#EBDBB2")}
 cursor-text = {colors.get("term0", "#282828")}
 
-selection-background = {colors.get("term15", "#EBDBB2")}
-selection-foreground = {colors.get("term0", "#282828")}
+selection-background = {colors["selectionBg"]}
+selection-foreground = {colors.get("term15", "#EBDBB2")}
 
 # Black
 palette = 0={colors.get("term0", "#282828")}
@@ -751,7 +770,7 @@ onSecondary = '{colors.get("onSecondary", "#1D2021")}'
 tertiary = '{colors.get("tertiary", "#D3869B")}'
 onTertiary = '{colors.get("onTertiary", "#1D2021")}'
 surface = '{colors.get("surface", "#1D2021")}'
-onSurface = '{colors.get("onSurface", "#EBDBB2")}'
+onSurface = '{colors.get("term15", colors.get("onSurface", "#EBDBB2"))}'
 background = '{colors.get("term0", "#282828")}'
 foreground = '{colors.get("term15", "#EBDBB2")}'
 black = '{colors.get("term0", "#282828")}'
@@ -831,13 +850,13 @@ bright_white = '{colors.get("term15", "#EBDBB2")}'
 def generate_btop_config(colors, output_path):
     """Generate btop theme using Material You design tokens"""
 
-    bg = colors.get("surface", colors.get("background"))
-    surface_low = colors.get("surface_container_low")
+    bg = colors.get("term0", colors.get("surface", colors.get("background")))
+    surface_low = blend_hex(bg, colors.get("term15", "#EBDBB2"), 0.06)
     surface_std = colors.get("surface_container")
-    surface_high = colors.get("surface_container_high")
+    surface_high = blend_hex(bg, colors.get("term15", "#EBDBB2"), 0.14)
 
-    on_surface = colors.get("on_surface")
-    on_surface_variant = colors.get("on_surface_variant")
+    on_surface = colors.get("term15", colors.get("on_surface"))
+    on_surface_variant = colors.get("term7", colors.get("on_surface_variant"))
 
     outline = colors.get("outline")
     outline_variant = colors.get("outline_variant")
@@ -934,11 +953,12 @@ theme[process_end]="{primary_dim}"
 def generate_omp_config(colors, output_path):
     """Generate oh-my-posh theme using Material You design tokens"""
 
-    surface_container = colors.get("surface_container")
-    surface_container_high = colors.get("surface_container_high")
+    term0, term15 = colors.get("term0"), colors.get("term15")
+    surface_container = blend_hex(term0, term15, 0.08) if term0 and term15 else colors.get("surface_container")
+    surface_container_high = blend_hex(term0, term15, 0.14) if term0 and term15 else colors.get("surface_container_high")
 
-    on_surface = colors.get("on_surface")
-    on_surface_variant = colors.get("on_surface_variant")
+    on_surface = term15 or colors.get("on_surface")
+    on_surface_variant = colors.get("term7", colors.get("on_surface_variant"))
 
     primary = colors.get("primary")
     primary_container = colors.get("primary_container")

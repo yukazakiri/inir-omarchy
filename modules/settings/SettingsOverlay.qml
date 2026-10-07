@@ -65,7 +65,7 @@ Scope {
         onTriggered: root.recomputeOverlaySearchResults()
     }
 
-    function getFamilySettingsPageIndex(family: string) {
+    function getFamilySettingsPageIndex(family: string): int {
         const componentName = family === "waffle" ? "WaffleConfig.qml"
             : family === "iris" ? "IrisConfig.qml" : ""
         if (!componentName.length) return -1
@@ -1472,7 +1472,7 @@ Scope {
                                             anchors.leftMargin: 4
                                             width: 3
                                             radius: 1.5
-                                            // ZZZ separates by fill, not outlines (maintainer doctrine) — the
+                                            // ZZZ separates by fill, not outlines: the
                                             // sticker plate above already carries the selection signal, so
                                             // this accent line is redundant clutter there.
                                             visible: !Appearance.zzzEverywhere

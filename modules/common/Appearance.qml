@@ -971,7 +971,7 @@ Singleton {
         }
 
         // Class B: physical, velocity-carrying motion for retargetable props (traveling indicators,
-        // drag-follow, value bars). Gate Behaviors on animationsEnabled. See MORPH_ENGINE_DESIGN.md.
+        // drag-follow, value bars). Gate Behaviors on animationsEnabled.
         property QtObject spatialFollow: QtObject {
             property real velocity: 1400
             property Component smoothedAnimation: Component {
@@ -1607,7 +1607,7 @@ Singleton {
         // Subtle hairline for card edges where a full comic stroke is too loud.
         // Kept near-invisible on purpose: zzz plates separate by FILL contrast
         // (bg0..bg4), not outlines — bright edge strokes read as accent borders
-        // on every card/button and were removed by maintainer decision.
+        // on every card/button.
         readonly property color hairline: ColorUtils.applyAlpha(onColor, 0.08)
         readonly property color hairlineStrong: ColorUtils.applyAlpha(onColor, 0.14)
 
@@ -1883,12 +1883,11 @@ Singleton {
     // Toggle dark mode - switches between light and dark variants of current theme
     function toggleDarkMode(): void {
         const newMode = !root.m3colors.darkmode
-        // Update the custom theme darkmode setting
-        Config.setNestedValue("appearance.customTheme.darkmode", newMode)
-        // If using auto theme, regenerate from wallpaper with new mode
         if (ThemeService.isAutoTheme) {
-            ThemeService.regenerateAutoTheme()
+            // The same path as every other switch: mode passed explicitly, iRiS scheme kept in step.
+            MaterialThemeLoader.setDarkMode(newMode)
         } else {
+            Config.setNestedValue("appearance.customTheme.darkmode", newMode)
             // For preset themes, just toggle the darkmode flag directly
             root.m3colors.darkmode = newMode
         }

@@ -215,17 +215,16 @@ case "${SKIP_QUICKSHELL}" in
     showfun ensure-ytmusic-js-runtime
     v ensure-ytmusic-js-runtime
 
-    # Verify installation (only on updates, not fresh install)
-    if [[ "${IS_UPDATE}" == "true" && "${SKIP_VERIFICATION}" != "true" ]]; then
-      log_info "Verifying installation..."
-      if ! verify_qs_loads 8; then
-        log_error "Verification failed!"
-        echo ""
-        log_warning "Update may have issues — run './setup doctor' or './setup restore' to rollback"
-        echo ""
-      else
-        log_success "Verification passed"
-      fi
+    if [[ "${IS_UPDATE}" == "true" && "${SKIP_VERIFICATION}" != "true" ]] \
+        && [[ -n "${NIRI_SOCKET:-}${WAYLAND_DISPLAY:-}" ]] && ! inir_user_service_is_masked; then
+      log_info "Restarting the shell on the new files..."
+      restart_shell_and_verify 30
+      case $? in
+        0) log_success "The shell loaded the new files" ;;
+        1) log_error "The shell did not load the new files"
+           log_warning "Run './setup rollback' to go back to the previous version" ;;
+        *) log_warning "Could not confirm the shell loaded; 'inir logs' shows why" ;;
+      esac
     fi
     ;;
 esac
@@ -340,13 +339,13 @@ if command -v sddm &>/dev/null; then
     if [[ "${ask}" == "true" ]]; then
       tui_info "Recommended: install ii-pixel-sddm login theme (matches iNiR lockscreen)."
       if tui_confirm "Install ii-pixel-sddm now?" "yes"; then
-        extras_install_sddm_theme "yes"
+        extras_install_sddm_theme "yes" no
       else
         log_info "Skipping ii-pixel-sddm setup"
       fi
     else
       # Non-interactive: auto-install SDDM theme
-      extras_install_sddm_theme "yes"
+      extras_install_sddm_theme "yes" no
     fi
   fi
 fi
@@ -601,9 +600,13 @@ if [[ -d "dots/.config/vesktop/themes" ]]; then
   fi
 fi
 
-# Fontconfig
-if [[ -d "dots/.config/fontconfig" ]]; then
-  install_dir__sync "dots/.config/fontconfig" "${XDG_CONFIG_HOME}/fontconfig"
+# Fontconfig: grayscale for the shell only; the rest of the desktop keeps the user's choice
+if [[ -f "dots/.config/fontconfig/conf.d/90-inir-shell.conf" ]]; then
+  LEGACY_FONTCONFIG="${XDG_CONFIG_HOME}/fontconfig/fonts.conf"
+  if [[ -f "$LEGACY_FONTCONFIG" ]] && [[ "$(tr -d '[:space:]' < "$LEGACY_FONTCONFIG")" == '<?xmlversion="1.0"?><!DOCTYPEfontconfigSYSTEM"urn:fontconfig:fonts.dtd"><fontconfig><matchtarget="font"><editname="rgba"mode="assign"><const>none</const></edit></match></fontconfig>' ]]; then
+    v rm -f "$LEGACY_FONTCONFIG"
+  fi
+  install_file "dots/.config/fontconfig/conf.d/90-inir-shell.conf" "${XDG_CONFIG_HOME}/fontconfig/conf.d/90-inir-shell.conf"
 fi
 
 # Config (use defaults for distribution)
@@ -658,6 +661,7 @@ v dedup_and_sort_listfile "${INSTALLED_LISTFILE}" "${INSTALLED_LISTFILE}"
 # Environment variables are configured in Niri
 #####################################################################################
 tui_info "Configuring environment variables..."
+[[ "${IS_UPDATE}" != "true" ]] && INIR_REBOOT_REASONS+=("Niri's environment and the shell profile variables only load on a new login")
 
 # Primary: environment {} block in Niri config.kdl (already installed)
 # Secondary: shell profile files for terminals outside Niri session (SSH, TTY, etc.)
@@ -1227,33 +1231,26 @@ if ! ${quiet:-false}; then
     echo ""
   fi
 
-  # REBOOT WARNING (first install only)
-  if [[ "${IS_UPDATE}" != "true" ]]; then
-    echo ""
-    echo -e "${STY_CYAN}${STY_BOLD}┌─ Session Note${STY_RST}"
-    echo -e "${STY_CYAN}│${STY_RST}"
-    echo -e "${STY_CYAN}│${STY_RST}  ${STY_YELLOW}Log out or reboot${STY_RST} if new groups, env vars, or user services"
-    echo -e "${STY_CYAN}│${STY_RST}  do not apply immediately in your current session."
-    echo ""
-  else
+  # First installs end on the reboot notice from ./setup (show_install_completion)
+  if [[ "${IS_UPDATE}" == "true" ]]; then
     echo -e "${STY_CYAN}${STY_BOLD}┌─ Session Note${STY_RST}"
     echo -e "${STY_CYAN}│${STY_RST}"
     echo -e "${STY_CYAN}│${STY_RST}  Reload Niri or restart the session if the updated launcher bindings"
     echo -e "${STY_CYAN}│${STY_RST}  are not visible immediately."
+    echo -e "${STY_CYAN}└──────────────────────────────${STY_RST}"
+    echo ""
   fi
-  echo -e "${STY_CYAN}└──────────────────────────────${STY_RST}"
-  echo ""
 
   # Key shortcuts (only show on install, not update)
   if [[ "${IS_UPDATE}" != "true" ]]; then
     echo -e "${STY_PURPLE}${STY_BOLD}┌─ Key Shortcuts${STY_RST}"
     echo -e "${STY_PURPLE}│${STY_RST}"
-    echo -e "${STY_PURPLE}│${STY_RST}  ${STY_INVERT} Super+Space ${STY_RST}     Search / Overview"
-    echo -e "${STY_PURPLE}│${STY_RST}  ${STY_INVERT} Super+G ${STY_RST}         Overlay (widgets, tools)"
-    echo -e "${STY_PURPLE}│${STY_RST}  ${STY_INVERT} Alt+Tab ${STY_RST}         Window switcher"
+    echo -e "${STY_PURPLE}│${STY_RST}  ${STY_INVERT} Super+Space ${STY_RST}     Search and overview"
+    echo -e "${STY_PURPLE}│${STY_RST}  ${STY_INVERT} Super+, ${STY_RST}         Settings"
+    echo -e "${STY_PURPLE}│${STY_RST}  ${STY_INVERT} Super+Shift+W ${STY_RST}   Switch between Material, Waffle and iRiS"
     echo -e "${STY_PURPLE}│${STY_RST}  ${STY_INVERT} Super+V ${STY_RST}         Clipboard history"
-    echo -e "${STY_PURPLE}│${STY_RST}  ${STY_INVERT} Ctrl+Alt+T ${STY_RST}      Wallpaper picker"
-    echo -e "${STY_PURPLE}│${STY_RST}  ${STY_INVERT} Super+/ ${STY_RST}         Show all shortcuts"
+    echo -e "${STY_PURPLE}│${STY_RST}  ${STY_INVERT} Ctrl+Alt+T ${STY_RST}      Wallpapers"
+    echo -e "${STY_PURPLE}│${STY_RST}  ${STY_INVERT} Super+/ ${STY_RST}         Every other shortcut"
     echo -e "${STY_PURPLE}│${STY_RST}"
     echo -e "${STY_PURPLE}└──────────────────────────────${STY_RST}"
     echo ""
@@ -1265,9 +1262,7 @@ if ! ${quiet:-false}; then
 
   if [[ "${IS_UPDATE}" == "true" ]]; then
     echo -e "${STY_GREEN}Done. Hot reload should kick in any second now.${STY_RST}"
-  else
-    echo -e "${STY_GREEN}Install complete. iNiR is ready through the inir launcher.${STY_RST}"
+    echo ""
   fi
-  echo ""
 
 fi  # end quiet check

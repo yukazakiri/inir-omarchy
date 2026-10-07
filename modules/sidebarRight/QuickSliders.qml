@@ -14,6 +14,7 @@ Rectangle {
 
     property var screen: root.QsWindow.window?.screen
     property var brightnessMonitor: screen ? Brightness.getMonitorForScreen(screen) : null
+    onVisibleChanged: if (visible) root.brightnessMonitor?.refresh()
     property bool hasBrightnessMonitor: false
     readonly property bool brightnessEnabled: Config.options?.sidebar?.quickSliders?.showBrightness ?? true
     property real brightnessValue: 0.0

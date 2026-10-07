@@ -802,7 +802,7 @@ WSettingsPage {
             description: Translation.tr("Choose the Spicetify layout while keeping iNiR wallpaper colors")
             currentValue: Config.options?.appearance?.wallpaperTheming?.spicetifyTheme ?? "Inir"
             options: [
-                { value: "Inir", displayName: Translation.tr("Sleek") },
+                { value: "Inir", displayName: "iNiR" },
                 { value: "InirTUI", displayName: Translation.tr("Text (TUI)") }
             ]
             onSelected: newValue => {
@@ -825,6 +825,22 @@ WSettingsPage {
             description: Translation.tr("Apply Material You colors to YouTube Music Desktop App")
             checked: Config.options?.appearance?.wallpaperTheming?.enablePearDesktop ?? true
             onCheckedChanged: Config.setNestedValue("appearance.wallpaperTheming.enablePearDesktop", checked)
+        }
+
+        WSettingsSwitch {
+            label: Translation.tr("LiMusic")
+            icon: "music-note-2"
+            description: Translation.tr("LiMusic follows your wallpaper colours, from the next time it opens")
+            checked: Config.options?.appearance?.wallpaperTheming?.enableLimusic ?? false
+            onCheckedChanged: Config.setNestedValue("appearance.wallpaperTheming.enableLimusic", checked)
+        }
+
+        WSettingsSwitch {
+            label: Translation.tr("Claude Code")
+            icon: "terminal"
+            description: Translation.tr("Adds iNiR themes to Claude Code's theme list: two follow your wallpaper, two keep a fixed Monokai palette")
+            checked: Config.options?.appearance?.wallpaperTheming?.enableClaudeCode ?? false
+            onCheckedChanged: Config.setNestedValue("appearance.wallpaperTheming.enableClaudeCode", checked)
         }
 
         WSettingsSwitch {
@@ -1179,6 +1195,14 @@ WSettingsPage {
                 }
             ]
             onSelected: newValue => Config.setNestedValue("waffles.theming.font.family", newValue)
+        }
+
+        WSettingsSwitch {
+            label: Translation.tr("Apps use this font")
+            icon: "apps"
+            description: Translation.tr("Your apps' text follows the font the shell shows.")
+            checked: Config.options?.appearance?.typography?.syncWithSystem ?? true
+            onCheckedChanged: Config.setNestedValue("appearance.typography.syncWithSystem", checked)
         }
 
         WSettingsSpinBox {
