@@ -27,8 +27,9 @@ prepare  Turn [Unreleased] into the dated <version> section, write <version> int
 check    Everything publish needs, without changing anything: versions, changelog,
          branches, tag, hero image, and make test-local (skipped with --quick;
          --content checks only the files).
-publish  Run check, move main forward to this commit, tag it, push, create the GitHub
-         release and sync the Wiki. Each step is skipped when already done, so a
+publish  Run check (its tests only if check has not passed on this commit), move
+         main forward to this commit, tag it, push, create the GitHub release
+         and sync the Wiki. Each step is skipped when already done, so a
          publish that stopped halfway can be run again. The title defaults to the
          tag. Issues the notes list as fixed are closed with a pointer to it.
 notes    Print the release notes publish would use.
@@ -137,7 +138,7 @@ cut_changelog_section() {
   grep -q '^## \[Unreleased\]$' "$changelog" || die "$changelog has no ## [Unreleased] heading"
   [[ -n "$(unreleased_body | tr -d '[:space:]')" ]] || die "[Unreleased] is empty: write the changes first"
   awk -v v="$v" -v d="$today" -v iris="$(iris_version)" '
-    !done && $0 == "## [Unreleased]" { print; print ""; print "## [" v "] - " d; print ""; if (iris != "") { print "**iRiS " iris "**"; print "" } done = 1; skip = 1; next }
+    !done && $0 == "## [Unreleased]" { print "## [" v "] - " d; print ""; if (iris != "") { print "**iRiS " iris "**"; print "" } done = 1; skip = 1; next }
     skip && /^$/ { skip = 0; next }
     { skip = 0; print }
   ' "$changelog" > "$changelog.tmp"
@@ -305,6 +306,7 @@ run_check() {
   if (( ${#failures[@]} > 0 )); then
     return 1
   fi
+  [[ -n "$quick" ]] || printf '%s %s\n' "$(git rev-parse HEAD)" "$v" >"$(git rev-parse --git-path inir-release-tested)"
   say "$v is ready to publish"
 }
 
@@ -447,7 +449,7 @@ gallery_html() {
 
 cmd_prepare() {
   local v="$1"
-  local files=(VERSION "$changelog" ARCHITECTURE.md README.md docs/readme/README.*.md
+  local files=(VERSION modules/iris/VERSION "$changelog" ARCHITECTURE.md README.md docs/readme/README.*.md
     distro/arch/inir-meta distro/arch/inir-shell sdata/dist-arch/inir-deps/PKGBUILD
     sdata/dist-arch/install-deps.sh scripts/lyrics/lyrics.py)
   local excludes=() f
@@ -474,7 +476,12 @@ cmd_publish() {
   local v="$1" title="${2:-}"
   local tag="v$v"
   [[ -n "$title" ]] || title="$tag"
-  run_check "$v" || die "not publishing"
+  # check already ran the tests on this exact commit (the tree is clean, check_git holds it): skip only them.
+  if [[ "$(cat "$(git rev-parse --git-path inir-release-tested)" 2>/dev/null)" == "$(git rev-parse HEAD) $v" ]]; then
+    run_check "$v" --quick || die "not publishing"
+  else
+    run_check "$v" || die "not publishing"
+  fi
 
   local head branch image
   head="$(git rev-parse HEAD)"

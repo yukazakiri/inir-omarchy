@@ -1123,6 +1123,40 @@ ContentPage {
                     }
                 }
             }
+
+            ContentSubsection {
+                visible: MaterialThemeLoader.loginScreenInstalled
+                title: Translation.tr("Login screen")
+                tooltip: Translation.tr("Where you sign in after starting the computer. Automatic shows iRiS while you use iRiS.")
+
+                ConfigSelectionArray {
+                    currentValue: Config.options?.lock?.loginScreen ?? "auto"
+                    options: [
+                        { displayName: Translation.tr("Automatic"), icon: "auto_awesome", value: "auto" },
+                        { displayName: Translation.tr("Classic"), icon: "lock", value: "classic" },
+                        { displayName: Translation.tr("iRiS"), icon: "blur_on", value: "iris" }
+                    ]
+                    onSelected: (newValue) => Config.setNestedValue("lock.loginScreen", newValue)
+                }
+            }
+
+            ContentSubsection {
+                readonly property string look: Config.options?.lock?.loginScreen ?? "auto"
+                visible: MaterialThemeLoader.loginScreenInstalled
+                    && (look === "iris" || (look === "auto" && (Config.options?.panelFamily ?? "ii") === "iris"))
+                title: Translation.tr("Login style")
+                tooltip: Translation.tr("Cover shows your picture sharp, Frame hangs it in a mat, Lens cuts the time out of it.")
+
+                ConfigSelectionArray {
+                    currentValue: Config.options?.lock?.loginStyle ?? "lens"
+                    options: [
+                        { displayName: Translation.tr("Cover"), icon: "image", value: "cover" },
+                        { displayName: Translation.tr("Frame"), icon: "filter_frames", value: "frame" },
+                        { displayName: Translation.tr("Lens"), icon: "lens_blur", value: "lens" }
+                    ]
+                    onSelected: (newValue) => Config.setNestedValue("lock.loginStyle", newValue)
+                }
+            }
         }
     }
         }

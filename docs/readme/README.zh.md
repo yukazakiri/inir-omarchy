@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/snowarch/inir/releases"><img src="https://img.shields.io/badge/version-2.32.0-blue?style=flat-square" alt="Version"></a>
+  <a href="https://github.com/snowarch/inir/releases"><img src="https://img.shields.io/badge/version-2.33.0-blue?style=flat-square" alt="Version"></a>
   <a href="https://github.com/snowarch/inir/stargazers"><img src="https://img.shields.io/github/stars/snowarch/inir?style=flat-square" alt="Stars"></a>
   <a href="https://discord.gg/pAPTfAhZUJ"><img src="https://img.shields.io/badge/Discord-join-5865F2?style=flat-square&logo=discord&logoColor=white" alt="Discord"></a>
   <a href="../../LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-green?style=flat-square" alt="License"></a>
@@ -167,7 +167,7 @@ Wayland → GPU
 - **9 种全局风格**：Material（实色）、Cards、Aurora（玻璃模糊）、iNiR（TUI 风格）、Angel（新粗野主义）、Regalia（黑色机身、温暖的象牙色墨水、克制的香槟色细节）、ZZZ（海报板块）、Cookie Shapes（形状变换动画）、Editorial（纸墨排版）
 - **来自壁纸的动态颜色**，通过 Material You 应用到整个系统
 - **10 个终端和 TUI 工具自动主题化**：foot、kitty、alacritty、ghostty、wezterm、starship、fuzzel、btop、lazygit、yazi
-- **应用主题**：GTK3/4、Qt（通过 plasma-integration 和 darkly）、Firefox（MaterialFox）、Discord/Vesktop（System24）、Zed、Spicetify、Steam、SDDM
+- **应用主题**：GTK3/4、Qt（通过 plasma-integration 和 darkly）、Firefox、Discord/Vesktop（System24）、Zed、Spicetify、Steam、SDDM
 - **主题预设**：Gruvbox、Catppuccin、Rosé Pine 等，或者自己做一个
 - **视频壁纸**：mp4/webm/gif，可选模糊，也可以冻结第一帧以节省性能
 - **桌面小组件**：所有小组件共用一种设计（iRiS、Material、iNstrument 或 Readout），像 iOS 那样轮换的堆叠，以及随下方壁纸变化的墨色
@@ -249,6 +249,8 @@ inir logs                       # check runtime logs
 inir doctor                     # auto-diagnose and fix
 inir update                     # pull + migrate + restart
 ```
+
+**支持的发行版：** Arch；此 fork 还增加了经验证的 Void Linux glibc + runit 自动安装路径，并使用 XBPS。Void 说明见 [VOID.md](../VOID.md)，软件包详情见 [PACKAGES.md](../PACKAGES.md)。
 
 如果 `./setup install` 不是你想要的，还有其他方式：
 

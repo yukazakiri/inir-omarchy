@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/snowarch/inir/releases"><img src="https://img.shields.io/badge/version-2.32.0-blue?style=flat-square" alt="Version"></a>
+  <a href="https://github.com/snowarch/inir/releases"><img src="https://img.shields.io/badge/version-2.33.0-blue?style=flat-square" alt="Version"></a>
   <a href="https://github.com/snowarch/inir/stargazers"><img src="https://img.shields.io/github/stars/snowarch/inir?style=flat-square" alt="Stars"></a>
   <a href="https://discord.gg/pAPTfAhZUJ"><img src="https://img.shields.io/badge/Discord-join-5865F2?style=flat-square&logo=discord&logoColor=white" alt="Discord"></a>
   <a href="../../LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-green?style=flat-square" alt="License"></a>
@@ -173,7 +173,7 @@ Wayland → GPU
 - **9 أنماط عامة**: Material (مصمت)، Cards، Aurora (زجاج مموّه)، iNiR (مستوحى من TUI)، Angel (وحشية جديدة)، Regalia (هيكل أسود، حبر عاجي دافئ، تفاصيل شمبانيا هادئة)، ZZZ (ألواح ملصقات)، Cookie Shapes (أشكال متحركة)، Editorial (طباعة الورق والحبر)
 - **ألوان ديناميكية من الخلفية** عبر Material You في النظام كله
 - **10 أدوات طرفية وTUI بسمة تلقائية**: foot وkitty وalacritty وghostty وwezterm وstarship وfuzzel وbtop وlazygit وyazi
-- **سمات التطبيقات**: GTK3/4 وQt (عبر plasma-integration وdarkly) وFirefox (MaterialFox) وDiscord/Vesktop (System24) وZed وSpicetify وSteam وSDDM
+- **سمات التطبيقات**: GTK3/4 وQt (عبر plasma-integration وdarkly) وFirefox وDiscord/Vesktop (System24) وZed وSpicetify وSteam وSDDM
 - **سمات جاهزة**: Gruvbox وCatppuccin وRosé Pine وغيرها، أو اصنع سمتك
 - **خلفيات فيديو**: mp4/webm/gif مع تمويه اختياري، أو تجميد الإطار الأول من أجل الأداء
 - **أدوات سطح المكتب**: تصميم واحد لها كلها (iRiS أو Material أو iNstrument أو Readout)، ورزم تدور مثل رزم iOS، وحبر يتبع الخلفية التي تحتها
@@ -263,6 +263,8 @@ inir update                     # pull + migrate + restart
 ```
 
 </div>
+
+**التوزيعات المدعومة:** Arch، ويضيف هذا الفرع دعماً آلياً ومختبراً لـ Void Linux glibc + runit عبر XBPS. راجع [VOID.md](../VOID.md) لتعليمات Void و[PACKAGES.md](../PACKAGES.md) لباقي الحزم.
 
 طرق أخرى، إن لم يكن `./setup install` ما تريده:
 

@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/snowarch/inir/releases"><img src="https://img.shields.io/badge/version-2.32.0-blue?style=flat-square" alt="Version"></a>
+  <a href="https://github.com/snowarch/inir/releases"><img src="https://img.shields.io/badge/version-2.33.0-blue?style=flat-square" alt="Version"></a>
   <a href="https://github.com/snowarch/inir/stargazers"><img src="https://img.shields.io/github/stars/snowarch/inir?style=flat-square" alt="Stars"></a>
   <a href="https://discord.gg/pAPTfAhZUJ"><img src="https://img.shields.io/badge/Discord-join-5865F2?style=flat-square&logo=discord&logoColor=white" alt="Discord"></a>
   <a href="../../LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-green?style=flat-square" alt="License"></a>
@@ -167,7 +167,7 @@ Wayland → GPU
 - **9 つのグローバルスタイル**：Material（ソリッド）、Cards、Aurora（ガラスブラー）、iNiR（TUI 風）、Angel（ネオブルータリズム）、Regalia（黒いシャーシ、暖かいアイボリーのインク、控えめなシャンパンの金具）、ZZZ（ポスターのプレート）、Cookie Shapes（アニメーションする形）、Editorial（紙とインクのタイポグラフィ）
 - **壁紙からのダイナミックカラー**：Material You でシステム全体に
 - **10 のターミナル・TUI ツールを自動テーマ化**：foot、kitty、alacritty、ghostty、wezterm、starship、fuzzel、btop、lazygit、yazi
-- **アプリのテーマ**：GTK3/4、Qt（plasma-integration と darkly 経由）、Firefox（MaterialFox）、Discord/Vesktop（System24）、Zed、Spicetify、Steam、SDDM
+- **アプリのテーマ**：GTK3/4、Qt（plasma-integration と darkly 経由）、Firefox、Discord/Vesktop（System24）、Zed、Spicetify、Steam、SDDM
 - **テーマプリセット**：Gruvbox、Catppuccin、Rosé Pine など、または自作
 - **動画壁紙**：mp4/webm/gif、ブラーは任意。パフォーマンス重視なら最初のフレームで静止
 - **デスクトップウィジェット**：すべてに共通の一つのデザイン（iRiS、Material、iNstrument、Readout）、iOS のようにめくれるスタック、下の壁紙に合わせて変わるインク
@@ -249,6 +249,8 @@ inir logs                       # check runtime logs
 inir doctor                     # auto-diagnose and fix
 inir update                     # pull + migrate + restart
 ```
+
+**対応ディストリビューション：** Arch。この fork では XBPS を使う Void Linux glibc + runit の自動・検証済みインストール経路も追加されています。Void は [VOID.md](../VOID.md)、パッケージ詳細は [PACKAGES.md](../PACKAGES.md) を参照してください。
 
 `./setup install` 以外の方法がよければ：
 

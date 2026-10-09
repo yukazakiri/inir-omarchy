@@ -21,6 +21,7 @@ done
 INIR_LAUNCHER_PATH="${XDG_BIN_HOME}/inir"
 INIR_APPLICATIONS_DIR="${XDG_DATA_HOME}/applications"
 INIR_ICON_DIR="${XDG_DATA_HOME}/icons/hicolor/scalable/apps"
+local _use_systemd=false
 
 # Create quickshell state directories
 v mkdir -p "${XDG_STATE_HOME}/quickshell/user/generated/wallpaper"
@@ -167,14 +168,18 @@ case "${SKIP_QUICKSHELL}" in
       fi
     fi
 
-    repair_legacy_niri_shell_startup >/dev/null 2>&1 || true
+    # Determine supervisor path once; the shared reconciler owns the service file.
+    if [[ "$(inir_supervisor)" == systemd ]]; then
+      _use_systemd=true
+    fi
 
+    repair_legacy_niri_shell_startup >/dev/null 2>&1 || true
     local _service_refresh_status=1
     local _service_dir="${XDG_CONFIG_HOME}/systemd/user"
     local _service_asset="${REPO_ROOT}/assets/systemd/inir.service"
     local _service_target="${_service_dir}/inir.service"
 
-    if [[ -f "$_service_asset" ]]; then
+    if $_use_systemd && [[ -f "$_service_asset" ]]; then
       mkdir -p "$_service_dir"
 
       if inir_user_service_is_masked; then
@@ -193,7 +198,7 @@ case "${SKIP_QUICKSHELL}" in
       fi
     fi
 
-    if [[ -f "$_service_target" ]]; then
+    if $_use_systemd && [[ -f "$_service_target" ]]; then
       if ensure_user_inir_service_enabled; then
         log_success "User inir.service enabled (wired to niri.service)"
       else
@@ -261,7 +266,7 @@ case "${SKIP_NIRI}" in
       log_success "Niri config installed (dots)"
     fi
 
-    # Patch config.kdl: detect polkit agent
+    # Patch the Niri config: startup extras and the Qt platform theme
     NIRI_CFG="${XDG_CONFIG_HOME}/niri/config.kdl"
     NIRI_ENV_CFG="${XDG_CONFIG_HOME}/niri/config.d/40-environment.kdl"
     NIRI_STARTUP_CFG="${XDG_CONFIG_HOME}/niri/config.d/50-startup.kdl"
@@ -275,13 +280,7 @@ case "${SKIP_NIRI}" in
     [[ -f "$NIRI_BINDS_CFG" ]] && NIRI_BINDS_TARGET="$NIRI_BINDS_CFG"
 
     if [[ -f "$NIRI_CFG" ]]; then
-      POLKIT_AGENT="$(get-polkit-agent)"
-      if [[ -n "$POLKIT_AGENT" ]]; then
-        sed -i "s|spawn-at-startup \"/usr/lib/mate-polkit/polkit-mate-authentication-agent-1\"|spawn-at-startup \"${POLKIT_AGENT}\"|" "$NIRI_STARTUP_TARGET"
-        log_success "Polkit agent: $(basename "$(dirname "$POLKIT_AGENT")")/$(basename "$POLKIT_AGENT")"
-      else
-        log_warning "No polkit agent found — sudo dialogs may not work"
-      fi
+      # No polkit agent is spawned: the shell is the agent (migration 044 retires the line older setups wrote).
 
       if [[ "${INSTALL_FIRSTRUN}" == true && "${OS_SPECIFIC_ID:-}" == "cachyos" ]] \
           && command -v niri-focused-booster >/dev/null 2>&1 \
@@ -296,10 +295,12 @@ case "${SKIP_NIRI}" in
       # colors from kdeglobals. Without it, Qt apps can't use KDE color schemes.
       # We check for plasma-integration (not plasma-desktop) because it can be
       # installed standalone for KDE theming without the full Plasma desktop.
-      if pacman -Q plasma-integration &>/dev/null 2>&1 || \
+      if xbps-query -p pkgver plasma-integration >/dev/null 2>&1 || \
+         pacman -Q plasma-integration &>/dev/null 2>&1 || \
          dpkg -l plasma-integration 2>/dev/null | grep -q '^ii' || \
          rpm -q plasma-integration &>/dev/null 2>&1; then
-        : # plasma-integration installed — keep "kde" platform theme (reads kdeglobals)
+        # Reconcile previous fallback installs back to KDE when the provider exists.
+        sed -i 's/QT_QPA_PLATFORMTHEME "qt6ct"/QT_QPA_PLATFORMTHEME "kde"/' "$NIRI_ENV_TARGET"
         log_success "Qt theme: kde (plasma-integration detected)"
       else
         # No plasma-integration: fall back to qt6ct
@@ -321,6 +322,15 @@ case "${SKIP_NIRI}" in
     fi
     ;;
 esac
+
+# Render the startup supervisor and service after the Niri config has been installed.
+source "$REPO_ROOT/sdata/lib/functions.sh" 2>/dev/null || true
+local _selected_supervisor
+if ! _selected_supervisor="$(reconcile_inir_supervisor)"; then
+  log_error "Could not configure the iNiR supervisor"
+  return 1
+fi
+log_success "Startup: selected ${_selected_supervisor} supervisor"
 
 # Theming templates — defaults/ is the primary source (kept in sync with dots/)
 if [[ -d "defaults/matugen" ]]; then
@@ -348,12 +358,6 @@ if command -v sddm &>/dev/null; then
       extras_install_sddm_theme "yes" no
     fi
   fi
-fi
-
-# Fuzzel (launcher)
-if [[ -d "dots/.config/fuzzel" ]]; then
-  install_dir__sync "dots/.config/fuzzel" "${XDG_CONFIG_HOME}/fuzzel"
-  log_success "Fuzzel config installed"
 fi
 
 # Starship (prompt)
@@ -613,6 +617,14 @@ fi
 if [[ -f "defaults/config.json" ]]; then
   v mkdir -p "${DOTS_CORE_CONFDIR}"
   install_file__auto_backup "defaults/config.json" "${DOTS_CORE_CONFDIR}/config.json"
+fi
+if command -v jq >/dev/null 2>&1 \
+    && [[ -f "${DOTS_CORE_CONFDIR}/config.json" ]] \
+    && [[ -z "$(jq -r '.hotspot.password // empty' "${DOTS_CORE_CONFDIR}/config.json")" ]]; then
+  _hotspot_password="$(od -An -N6 -tx1 /dev/urandom | tr -d ' \n')"
+  jq --arg password "$_hotspot_password" '.hotspot.password = $password' \
+    "${DOTS_CORE_CONFDIR}/config.json" > "${DOTS_CORE_CONFDIR}/config.json.tmp" \
+    && mv "${DOTS_CORE_CONFDIR}/config.json.tmp" "${DOTS_CORE_CONFDIR}/config.json"
 fi
 
 # DISABLED: WebApp plugins — requires quickshell-webengine rebuild, re-enable when ready
@@ -984,7 +996,6 @@ if [[ "${INSTALL_FIRSTRUN}" == true && -n "${DEFAULT_WALLPAPER}" && -f "${DEFAUL
   mkdir -p "${XDG_STATE_HOME}/quickshell/user/generated/wallpaper"
   mkdir -p "${XDG_CONFIG_HOME}/gtk-3.0"
   mkdir -p "${XDG_CONFIG_HOME}/gtk-4.0"
-  mkdir -p "${XDG_CONFIG_HOME}/fuzzel"
 
   # Update config.json with default wallpaper path
   shell_config_json="${DOTS_CORE_CONFDIR}/config.json"
@@ -1081,7 +1092,7 @@ if [[ -n "${II_TARGET}" && -d "${II_TARGET}" ]]; then
   if [[ -f "${REPO_ROOT}/VERSION" ]]; then
     REPO_VERSION=$(cat "${REPO_ROOT}/VERSION" | tr -d '[:space:]')
   fi
-  if command -v git &>/dev/null && [[ -d "${REPO_ROOT}/.git" ]]; then
+  if command -v git &>/dev/null && [[ -e "${REPO_ROOT}/.git" ]]; then
     REPO_COMMIT=$(git -C "${REPO_ROOT}" rev-parse --short HEAD 2>/dev/null || echo "")
   fi
   write_version_info_json "${II_TARGET}/version.json" "${REPO_VERSION:-0.0.0}" "${REPO_COMMIT:-unknown}" "setup-install"
@@ -1133,7 +1144,6 @@ if ! ${quiet:-false}; then
     in "${XDG_CONFIG_HOME}/niri/config.kdl:Niri config" \
        "${DOTS_CORE_CONFDIR}/config.json:iNiR config" \
        "${XDG_CONFIG_HOME}/matugen:Theming templates" \
-       "${XDG_CONFIG_HOME}/fuzzel:Fuzzel config" \
        "${XDG_STATE_HOME}/quickshell/user/generated/colors.json:Theme colors"; do
     _cfg_file="${_cfg_path%%:*}"
     _cfg_label="${_cfg_path##*:}"

@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/snowarch/inir/releases"><img src="https://img.shields.io/badge/version-2.32.0-blue?style=flat-square" alt="Version"></a>
+  <a href="https://github.com/snowarch/inir/releases"><img src="https://img.shields.io/badge/version-2.33.0-blue?style=flat-square" alt="Version"></a>
   <a href="https://github.com/snowarch/inir/stargazers"><img src="https://img.shields.io/github/stars/snowarch/inir?style=flat-square" alt="Stars"></a>
   <a href="https://discord.gg/pAPTfAhZUJ"><img src="https://img.shields.io/badge/Discord-join-5865F2?style=flat-square&logo=discord&logoColor=white" alt="Discord"></a>
   <a href="../../LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-green?style=flat-square" alt="License"></a>
@@ -167,7 +167,7 @@ Wayland → GPU
 - **9 ग्लोबल स्टाइल**: Material (ठोस), Cards, Aurora (ग्लास ब्लर), iNiR (TUI से प्रेरित), Angel (नियो-ब्रूटलिज़्म), Regalia (काला ढाँचा, गर्म हाथीदाँत रंग की स्याही, संयमित शैंपेन रंग के हिस्से), ZZZ (पोस्टर प्लेट), Cookie Shapes (एनिमेटेड आकार), Editorial (काग़ज़ और स्याही वाली टाइपोग्राफ़ी)
 - **वॉलपेपर से डायनेमिक रंग**, Material You के ज़रिए पूरे सिस्टम में
 - **10 टर्मिनल और TUI टूल की ऑटो-थीम**: foot, kitty, alacritty, ghostty, wezterm, starship, fuzzel, btop, lazygit, yazi
-- **ऐप थीम**: GTK3/4, Qt (plasma-integration और darkly से), Firefox (MaterialFox), Discord/Vesktop (System24), Zed, Spicetify, Steam, SDDM
+- **ऐप थीम**: GTK3/4, Qt (plasma-integration और darkly से), Firefox, Discord/Vesktop (System24), Zed, Spicetify, Steam, SDDM
 - **थीम प्रीसेट**: Gruvbox, Catppuccin, Rosé Pine और भी, या अपना बनाएँ
 - **वीडियो वॉलपेपर**: mp4/webm/gif, ब्लर वैकल्पिक, या परफ़ॉर्मेंस के लिए पहला फ़्रेम रुका हुआ
 - **डेस्कटॉप विजेट**: सबके लिए एक डिज़ाइन (iRiS, Material, iNstrument या Readout), iOS जैसे घूमने वाले स्टैक, और नीचे के वॉलपेपर के साथ बदलने वाली स्याही
@@ -249,6 +249,8 @@ inir logs                       # check runtime logs
 inir doctor                     # auto-diagnose and fix
 inir update                     # pull + migrate + restart
 ```
+
+**समर्थित डिस्ट्रो:** Arch; यह fork XBPS के साथ Void Linux glibc + runit के लिए भी validated automated install path देता है। Void के लिए [VOID.md](../VOID.md) और पैकेजों के लिए [PACKAGES.md](../PACKAGES.md) देखें।
 
 अगर `./setup install` आपको नहीं चाहिए, तो दूसरे तरीके:
 

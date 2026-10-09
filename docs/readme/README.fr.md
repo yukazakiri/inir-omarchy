@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/snowarch/inir/releases"><img src="https://img.shields.io/badge/version-2.32.0-blue?style=flat-square" alt="Version"></a>
+  <a href="https://github.com/snowarch/inir/releases"><img src="https://img.shields.io/badge/version-2.33.0-blue?style=flat-square" alt="Version"></a>
   <a href="https://github.com/snowarch/inir/stargazers"><img src="https://img.shields.io/github/stars/snowarch/inir?style=flat-square" alt="Stars"></a>
   <a href="https://discord.gg/pAPTfAhZUJ"><img src="https://img.shields.io/badge/Discord-join-5865F2?style=flat-square&logo=discord&logoColor=white" alt="Discord"></a>
   <a href="../../LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-green?style=flat-square" alt="License"></a>
@@ -167,7 +167,7 @@ Je voulais que mon bureau ait une certaine allure et fonctionne d'une certaine f
 - **9 styles globaux** : Material (plein), Cards, Aurora (glass flouté), iNiR (inspiré des TUI), Angel (néo-brutalisme), Regalia (châssis noir, encre ivoire chaude, finitions champagne discrètes), ZZZ (plaques d'affiche), Cookie Shapes (formes animées), Editorial (typographie papier et encre)
 - **Couleurs dynamiques du fond d'écran** via Material You, dans tout le système
 - **10 outils de terminal et TUI thématisés automatiquement** : foot, kitty, alacritty, ghostty, wezterm, starship, fuzzel, btop, lazygit, yazi
-- **Thème des apps** : GTK3/4, Qt (via plasma-integration et darkly), Firefox (MaterialFox), Discord/Vesktop (System24), Zed, Spicetify, Steam, SDDM
+- **Thème des apps** : GTK3/4, Qt (via plasma-integration et darkly), Firefox, Discord/Vesktop (System24), Zed, Spicetify, Steam, SDDM
 - **Préréglages de thème** : Gruvbox, Catppuccin, Rosé Pine et d'autres, ou crée le tien
 - **Fonds d'écran vidéo** : mp4/webm/gif avec flou optionnel, ou première image figée pour les performances
 - **Widgets de bureau** : un seul design pour tous (iRiS, Material, iNstrument ou Readout), des piles qui tournent comme sur iOS et une encre qui suit le fond d'écran en dessous
@@ -249,6 +249,8 @@ inir logs                       # check runtime logs
 inir doctor                     # auto-diagnose and fix
 inir update                     # pull + migrate + restart
 ```
+
+**Distributions supportées :** Arch ; ce fork ajoute aussi une installation automatisée et validée pour Void Linux glibc + runit via XBPS. Voir [VOID.md](../VOID.md) pour Void et [PACKAGES.md](../PACKAGES.md) pour les paquets.
 
 D'autres façons d'installer, si `./setup install` ne te convient pas :
 

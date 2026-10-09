@@ -28,6 +28,8 @@ Item {
     readonly property alias frame: frame
     readonly property var screen: root.QsWindow.window?.screen ?? null
     property string section: "general"
+    // The main-list row that holds the selection, for the travelling wash in the sidebar.
+    property Item travelRow: null
     property int advancedPage: -1
     property string query: ""
     property string group: ""
@@ -38,7 +40,7 @@ Item {
     readonly property real d: IrisStyle.density
     readonly property var sections: IrisOptions.sections
     // Sources and More Settings sit in a footer under the list, always in view.
-    readonly property int footerCluster: 5
+    readonly property int footerCluster: 6
     readonly property var specifications: IrisOptions.settings
     readonly property var currentSection: IrisOptions.sectionById(root.section)
     readonly property bool searching: root.query.length > 0
@@ -55,6 +57,10 @@ Item {
         : root.group.length > 0 ? root.group
         : root.groups.length === 1 ? root.groups[0].title : ""
     readonly property bool browsing: !root.searching && root.openGroup.length === 0 && root.advancedPage < 0
+    // The page's head stays in view while its rows scroll when it shows a scene, unless the window is so short that the
+    // rows would be left a sliver: then it scrolls with them.
+    readonly property bool heroPinned: pageHero.shown && pageHero.staged
+        && pageArea.height >= pageHero.implicitHeight + Math.round(260 * root.d)
     function shown(spec: var): bool { return IrisOptions.shown(spec) }
 
     readonly property int searchLimit: 24
@@ -109,10 +115,24 @@ Item {
     }
     readonly property var shownGroups: root.searching ? root.groups
         : root.openGroup.length > 0 ? root.groups.filter(entry => entry.title === root.openGroup) : []
+    // A section's groups in named blocks, by what someone came to change (IrisOptions.groupClusters); a section without
+    // blocks is cut into even cards. Groups a block does not name close the page in a last block of their own.
     readonly property var groupChunks: {
-        const size = root.groups.length > 7 ? Math.ceil(root.groups.length / Math.ceil(root.groups.length / 6)) : root.groups.length
+        const clusters = IrisOptions.groupClusters[root.section] ?? []
         const out = []
-        for (let i = 0; i < root.groups.length; i += Math.max(1, size)) out.push(root.groups.slice(i, i + size))
+        if (clusters.length > 0) {
+            const placed = new Set()
+            for (const cluster of clusters) {
+                const groups = cluster.groups.map(key => root.groups.find(entry => entry.key === key)).filter(entry => entry !== undefined)
+                groups.forEach(entry => placed.add(entry.key))
+                if (groups.length > 0) out.push({ caption: Translation.tr(cluster.caption), groups: groups, flow: cluster.flow ?? false })
+            }
+            const rest = root.groups.filter(entry => !placed.has(entry.key))
+            if (rest.length > 0) out.push({ caption: out.length > 0 ? Translation.tr("More") : "", groups: rest })
+            return out
+        }
+        const size = root.groups.length > 7 ? Math.ceil(root.groups.length / Math.ceil(root.groups.length / 6)) : root.groups.length
+        for (let i = 0; i < root.groups.length; i += Math.max(1, size)) out.push({ caption: "", groups: root.groups.slice(i, i + size) })
         return out
     }
     function valueText(spec: var): string {
@@ -129,7 +149,8 @@ Item {
         case "icon": return String(value ?? "").length > 0 ? Translation.tr("Custom") : ""
         case "zone":
         case "choice":
-            if (spec.fallback === "" && value === "") return ""
+            // "None" says nothing in a group's summary ("Graphite, None"): only what is there is named.
+            if ((spec.fallback === "" && value === "") || value === "none") return ""
             return Translation.tr(String(IrisOptions.choicesOf(spec).find(choice => IrisOptions.same(choice.value, value))?.label ?? ""))
         case "range":
             if (spec.fallback !== undefined && IrisOptions.same(value, spec.fallback)) return ""
@@ -199,9 +220,9 @@ Item {
         const entry = IrisOptions.morePages.find(candidate => candidate.key === page?.key)
         return entry ? Translation.tr(entry.label) : String(page?.name ?? page?.title ?? "")
     }
-    readonly property var editTargets: ({ bar: "island", player: "bodies", bubbles: "pieces", dock: "dock", appearance: "material",
+    readonly property var editTargets: ({ bar: "island", player: "bodies", bubbles: "pieces", dock: "dock", appearance: "material", colour: "colour",
         motion: "motion", desktop: "desktop", sidebars: "places", spotlight: "places", controlCenter: "bodies" })
-    readonly property var studioTargets: ({ bar: "island", bubbles: "pieces", dock: "dock", appearance: "material", motion: "motion",
+    readonly property var studioTargets: ({ bar: "island", bubbles: "pieces", dock: "dock", appearance: "material", colour: "colour", motion: "motion",
         desktop: "desktop", sidebars: "places", controlCenter: "bodies", spotlight: "places", sound: "transients", notifications: "transients", player: "bodies" })
 
     function here(): var { return { section: root.section, group: root.group, advancedPage: root.advancedPage } }
@@ -257,6 +278,19 @@ Item {
             }
         }
     }
+    // A link written before a topic got its own section (appearance/Accent, lock/Login screen, desktop/Wallpaper gallery)
+    // still lands: a group asked for where it no longer is opens in the section that holds it now.
+    readonly property var renamedGroups: ({ "appearance/wallpaper": "Wallpaper tint" })
+    function followMovedGroup(): void {
+        let wanted = root.requestedGroup.toLowerCase()
+        if (wanted.length === 0) return
+        const holds = (section, name) => root.specifications.some(spec => spec.section === section && String(spec.group ?? "").toLowerCase() === name)
+        if (holds(root.requestedSection, wanted)) return
+        const renamed = String(root.renamedGroups[root.requestedSection + "/" + wanted] ?? "")
+        if (renamed.length > 0) { root.requestedGroup = renamed; wanted = renamed.toLowerCase() }
+        const home = root.specifications.find(spec => String(spec.group ?? "").toLowerCase() === wanted)
+        if (home) root.requestedSection = home.section
+    }
     function runCommand(verb: string): bool {
         if (verb === "back") root.goBack()
         else if (verb === "forward") root.goForward()
@@ -281,8 +315,13 @@ Item {
         if (request.length > 1) {
             root.requestedGroup = request.slice(1).join("/")
             groupRequest.restart()
+        } else if (request[0].length > 0) {
+            // A new place without a group drops a group still waiting from the last request.
+            groupRequest.stop()
+            root.requestedGroup = ""
         }
         GlobalStates.settingsOverlayRequestedSection = ""
+        root.followMovedGroup()
         const page = GlobalStates.settingsOverlayRequestedPage
         if (page >= 0) {
             const irisPage = page === root.irisPageIndex
@@ -309,7 +348,7 @@ Item {
             root.applyRequest()
         }
     }
-    onSectionChanged: pageEnter.restart()
+    onSectionChanged: { settingsFlick.contentY = 0; pageEnter.restart() }
     onOpenGroupChanged: { settingsFlick.contentY = 0; pageEnter.restart() }
     onAdvancedPageChanged: pageEnter.restart()
 
@@ -345,12 +384,15 @@ Item {
     Shortcut { sequences: ["Alt+Right", "Ctrl+]"]; enabled: GlobalStates.settingsOverlayOpen; onActivated: root.goForward() }
     MouseArea { anchors.fill: parent; enabled: !root.windowed; onClicked: GlobalStates.settingsOverlayOpen = false }
 
+    // Afterglow's bevel must follow the corners Niri clips the window to.
+    readonly property bool windowField: root.windowed && IrisStyle.afterglow
+    onWindowFieldChanged: if (root.windowField) IrisNiri.reload(["window-rules"])
     // In a window Niri owns the shape, the corners and the open motion: the body fills it, already open.
     IrisMorphSurface {
         motionSurface: "settings"
         settles: true
         windowOffset: Qt.point(IrisFrame.band, IrisFrame.band)
-        ownField: !root.windowed
+        ownField: !root.windowed || root.windowField
         // A window cannot know where it sits on screen, so it never samples the wallpaper: Blur asks Niri, else solid.
         glass: !root.windowed || IrisStyle.glassCompositor
         id: frame
@@ -358,7 +400,8 @@ Item {
         open: root.windowed || GlobalStates.settingsOverlayOpen
         color: IrisStyle.surface
         light: IrisStyle.surfaceLight("settings", IrisStyle.wallpaperLight)
-        radius: root.windowed ? 0 : IrisStyle.surfaceRadius("settings", IrisStyle.radiusPanel)
+        radius: root.windowField ? Number(IrisNiri.data["window-rules"]?.corner_radius ?? 16)
+            : root.windowed ? 0 : IrisStyle.surfaceRadius("settings", IrisStyle.radiusPanel)
         onClosed: GlobalStates.irisMorphOwner = ""
         x: root.windowed ? 0 : (parent.width - width) / 2
         y: root.windowed ? 0 : (parent.height - height) / 2
@@ -505,6 +548,32 @@ Item {
                             maskSource: sidebarFade
                             maskThresholdMin: 0.5
                             maskSpreadAtMin: 1
+                        }
+
+                        // Where you are travels from row to row on the morph curve (the gallery's ring does the same) instead of
+                        // fading out on one row and in on the next. Under the rows; the footer keeps its own wash.
+                        Rectangle {
+                            id: travelWash
+                            readonly property Item row: root.travelRow
+                            readonly property bool shown: travelWash.row !== null && travelWash.row.selected
+                            property bool travels: false
+                            x: sidebarColumn.x
+                            width: sidebarColumn.width
+                            y: travelWash.row ? sidebarColumn.y + travelWash.row.y + travelWash.row.height - travelWash.row.rowHeight : 0
+                            height: travelWash.row ? travelWash.row.rowHeight : 0
+                            radius: travelWash.row ? travelWash.row.washRadius : 0
+                            color: IrisStyle.tintFillHover(travelWash.row?.compact ? travelWash.row.modelData.tint : IrisStyle.accent)
+                            opacity: travelWash.shown ? 1 : 0
+                            // It lands where it first appears and travels from then on. Moving the selection hides it for a
+                            // moment (the old row lets go before the new one takes it): only a hide that lasts stops the travel.
+                            onShownChanged: if (travelWash.shown) { washDisarm.stop(); if (!travelWash.travels) washArm.restart() }
+                                else washDisarm.restart()
+                            Timer { id: washArm; interval: 0; onTriggered: travelWash.travels = IrisStyle.motionEnabled }
+                            Timer { id: washDisarm; interval: 150; onTriggered: if (!travelWash.shown) travelWash.travels = false }
+                            Behavior on y { enabled: travelWash.travels; NumberAnimation { duration: IrisStyle.morphDuration; easing.type: Easing.BezierSpline; easing.bezierCurve: IrisStyle.morphCurve } }
+                            Behavior on height { enabled: travelWash.travels; NumberAnimation { duration: IrisStyle.morphDuration; easing.type: Easing.BezierSpline; easing.bezierCurve: IrisStyle.morphCurve } }
+                            Behavior on opacity { NumberAnimation { duration: IrisStyle.duration(110); easing.type: IrisStyle.feedbackEasing } }
+                            Behavior on color { ColorAnimation { duration: IrisStyle.duration(110); easing.type: IrisStyle.feedbackEasing } }
                         }
 
                         Column {
@@ -765,9 +834,74 @@ Item {
                     }
                     transform: Translate { id: pageShift }
 
+                    // A head that carries a scene stays in view while its rows scroll under it: every change is seen as it
+                    // lands, however far down the row is. One head, moved between this slot and the top of the rows.
+                    Item {
+                        id: heroPinSlot
+                        visible: settingsFlick.visible && root.heroPinned
+                        x: Math.round((pageArea.width - width) / 2)
+                        y: Math.round(6 * root.d)
+                        width: settingsRows.width
+                        height: visible ? pageHero.implicitHeight : 0
+                        // The head is part of the page: the wheel over it scrolls the rows, as it would if it scrolled too.
+                        WheelHandler {
+                            acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+                            onWheel: event => {
+                                const step = event.pixelDelta.y !== 0 ? event.pixelDelta.y : event.angleDelta.y / 120 * 64 * root.d
+                                const end = Math.max(0, settingsFlick.contentHeight - settingsFlick.height)
+                                settingsFlick.contentY = Math.max(0, Math.min(end, settingsFlick.contentY - step))
+                            }
+                        }
+                    }
+
+                    StageHero {
+                        id: pageHero
+                        readonly property bool groupPage: !root.searching && root.openGroup.length > 0 && root.advancedPage < 0
+                        readonly property bool sectionPage: root.browsing && root.section !== "system" && root.section !== "general" && root.section !== "gaming"
+                        readonly property string key: String(root.shownGroups[0]?.key ?? "")
+                        // A group with no scene has no head: the toolbar already names it.
+                        readonly property bool shown: pageHero.sectionPage || (pageHero.groupPage && pageHero.stageAvailable)
+                        parent: root.heroPinned ? heroPinSlot : heroFlowSlot
+                        width: settingsRows.width
+                        visible: pageHero.shown
+                        tint: pageHero.groupPage ? (IrisOptions.groupTints[pageHero.key] ?? root.currentSection.tint) : root.currentSection.tint
+                        glyph: pageHero.groupPage ? (IrisOptions.groupGlyphs[pageHero.key] ?? root.currentSection.icon) : root.currentSection.icon
+                        title: !pageHero.groupPage ? Translation.tr(root.currentSection.subtitle)
+                            : pageHero.caption.length > 0 ? pageHero.caption : root.openGroup
+                        text: Translation.tr(root.currentSection.tip ?? "")
+                        sceneSection: pageHero.sectionPage || pageHero.groupPage ? root.section : ""
+                        sceneGroup: pageHero.groupPage ? pageHero.key : ""
+                    }
+
                     Flickable {
                         id: settingsFlick
                         anchors.fill: parent
+                        anchors.topMargin: root.heroPinned ? heroPinSlot.y + heroPinSlot.height + Math.round(12 * root.d) : 0
+                        // Rows pass under the pinned head, never over it.
+                        clip: root.heroPinned
+                        // and fade into the air under it instead of ending on a cut, as the sidebar's list does at its foot.
+                        layer.enabled: root.heroPinned && settingsFlick.contentY > 1
+                        layer.effect: MultiEffect {
+                            maskEnabled: true
+                            maskSource: rowsFade
+                            maskThresholdMin: 0.5
+                            maskSpreadAtMin: 1
+                        }
+                        Item {
+                            id: rowsFade
+                            parent: settingsFlick
+                            anchors.fill: parent
+                            visible: false
+                            layer.enabled: true
+                            Rectangle {
+                                anchors.fill: parent
+                                gradient: Gradient {
+                                    GradientStop { position: 0; color: "transparent" }
+                                    GradientStop { position: Math.min(1, 18 * root.d / Math.max(1, rowsFade.height)); color: "white" }
+                                    GradientStop { position: 1; color: "white" }
+                                }
+                            }
+                        }
                         visible: root.advancedPage < 0 && !root.atHome
                         contentHeight: settingsRows.implicitHeight + 32 * root.d
                         boundsBehavior: Flickable.StopAtBounds
@@ -780,14 +914,12 @@ Item {
                             x: Math.round((settingsFlick.width - width) / 2)
                             spacing: 18 * root.d
 
-                            StageHero {
-                                visible: root.browsing && root.section !== "system" && root.section !== "general" && root.section !== "gaming"
-                                tint: root.currentSection.tint
-                                glyph: root.currentSection.icon
-                                title: Translation.tr(root.currentSection.subtitle)
-                                text: Translation.tr(root.currentSection.tip ?? "")
-                                sceneSection: root.browsing ? root.section : ""
-                                sceneGroup: ""
+                            // The head reads here only when it carries no scene, or the window is too short to keep one in view.
+                            Item {
+                                id: heroFlowSlot
+                                Layout.fillWidth: true
+                                visible: pageHero.shown && !root.heroPinned
+                                implicitHeight: visible ? pageHero.implicitHeight : 0
                             }
 
                             IrisGameModeCard {
@@ -797,18 +929,6 @@ Item {
                             IrisWallpaperCard {
                                 screen: root.screen
                                 visible: root.browsing && root.section === "general"
-                            }
-
-                            StageHero {
-                                id: groupHero
-                                readonly property string key: String(root.shownGroups[0]?.key ?? "")
-                                visible: !root.searching && root.openGroup.length > 0 && root.advancedPage < 0 && stageAvailable
-                                tint: IrisOptions.groupTints[groupHero.key] ?? root.currentSection.tint
-                                glyph: IrisOptions.groupGlyphs[groupHero.key] ?? root.currentSection.icon
-                                title: groupHero.caption.length > 0 ? groupHero.caption : root.openGroup
-                                text: Translation.tr(root.currentSection.tip ?? "")
-                                sceneSection: !root.searching && root.openGroup.length > 0 && root.advancedPage < 0 ? root.section : ""
-                                sceneGroup: groupHero.key
                             }
 
                             IrisText {
@@ -1014,6 +1134,12 @@ Item {
         readonly property bool clusterStart: sectionRow.gapAbove && (sectionRow.index === 0
             || sectionRow.list[sectionRow.index - 1]?.cluster !== sectionRow.modelData.cluster)
         readonly property bool selected: !root.searching && root.section === sectionRow.modelData.id
+        // Main-list rows hand their selection to the travelling wash (travelWash); footer rows paint their own.
+        readonly property bool travels: sectionRow.gapAbove
+        readonly property real washRadius: Math.min(sectionRow.rowHeight / 2, IrisStyle.iconRadius(sectionMark.width) + sectionMark.x)
+        onSelectedChanged: if (sectionRow.selected && sectionRow.travels) root.travelRow = sectionRow
+        Component.onCompleted: if (sectionRow.selected && sectionRow.travels) root.travelRow = sectionRow
+        Component.onDestruction: if (root.travelRow === sectionRow) root.travelRow = null
         readonly property bool dimmed: root.searching && !root.matchedSections.has(sectionRow.modelData.id)
         readonly property bool compact: root.railLayout
         readonly property real rowHeight: Math.round((sectionRow.compact ? 36 : 27) * root.d * Math.max(1, IrisStyle.typeScale))
@@ -1037,8 +1163,11 @@ Item {
             anchors.right: parent.right
             anchors.bottom: parent.bottom
             height: sectionRow.rowHeight
-            radius: IrisStyle.radiusRow
-            color: sectionRow.selected ? (sectionRow.compact ? IrisStyle.tintFill(sectionRow.modelData.tint) : IrisStyle.accent)
+            // Concentric with the mark it holds; where you are is a wash of the accent, as light as a hover, never a
+            // solid block heavier than the buttons around it.
+            radius: sectionRow.washRadius
+            color: sectionRow.selected && !sectionRow.travels ? IrisStyle.tintFillHover(sectionRow.compact ? sectionRow.modelData.tint : IrisStyle.accent)
+                : sectionRow.selected ? "transparent"
                 : sectionRow.containsMouse ? IrisStyle.fillHover : "transparent"
             Behavior on color { ColorAnimation { duration: IrisStyle.duration(110); easing.type: IrisStyle.feedbackEasing } }
             IrisSquircle {
@@ -1058,7 +1187,7 @@ Item {
                 anchors.rightMargin: 8 * root.d
                 anchors.verticalCenter: parent.verticalCenter
                 text: Translation.tr(sectionRow.modelData.title)
-                color: sectionRow.selected ? IrisStyle.inkOnAccent : IrisStyle.text
+                color: IrisStyle.text
                 font.pixelSize: IrisStyle.typeLabel
                 font.weight: IrisStyle.weight(sectionRow.selected ? Font.DemiBold : Font.Medium)
                 elide: Text.ElideRight
@@ -1109,6 +1238,9 @@ Item {
                     font.family: IrisStyle.fontTitle
                     font.pixelSize: IrisStyle.typeHeadline
                     font.weight: IrisStyle.weight(Font.DemiBold)
+                    // A half-screen window leaves the title beside the scene a third of the page: it wraps, never cuts.
+                    wrapMode: Text.WordWrap
+                    maximumLineCount: 2
                     elide: Text.ElideRight
                 }
                 IrisText {
@@ -1142,19 +1274,43 @@ Item {
         }
     }
 
-    component GroupList: Rectangle {
+    component GroupList: ColumnLayout {
         id: list
         required property var modelData
         Layout.fillWidth: true
-        implicitHeight: listColumn.implicitHeight
-        radius: IrisStyle.radiusTile
-        color: IrisStyle.readingCard
-        Column {
-            id: listColumn
-            width: parent.width
-            Repeater {
-                model: ScriptModel { objectProp: "title"; values: list.modelData }
-                GroupRow { last: index === list.modelData.length - 1 }
+        spacing: 6 * root.d
+        IrisText {
+            visible: text.length > 0
+            Layout.leftMargin: 16 * root.d
+            text: list.modelData.caption
+            color: IrisStyle.label
+            font.family: IrisStyle.fontTitle
+            font.pixelSize: IrisStyle.typeMeta
+            font.weight: IrisStyle.weight(Font.DemiBold)
+        }
+        Rectangle {
+            Layout.fillWidth: true
+            implicitHeight: listColumn.implicitHeight
+            radius: IrisStyle.radiusTile
+            color: IrisStyle.readingCard
+            // A block whose groups feed one another (colour: source, mode, accent, material, apps) threads its marks
+            // together, under them, from the first to the last.
+            Rectangle {
+                visible: list.modelData.flow ?? false
+                x: Math.round(27 * root.d - width / 2)
+                y: Math.round(23 * root.d)
+                width: Math.max(1, Math.round(2 * root.d))
+                height: Math.max(0, parent.height - 46 * root.d)
+                radius: width / 2
+                color: IrisStyle.hairlineStrong
+            }
+            Column {
+                id: listColumn
+                width: parent.width
+                Repeater {
+                    model: ScriptModel { objectProp: "title"; values: list.modelData.groups }
+                    GroupRow { last: index === list.modelData.groups.length - 1 }
+                }
             }
         }
     }
@@ -1376,25 +1532,50 @@ Item {
                 }
             }
         }
-        Rectangle {
-            Layout.fillWidth: true
-            implicitHeight: groupRows.implicitHeight
-            radius: IrisStyle.radiusTile
-            color: IrisStyle.readingCard
+        // A long group reads as captioned cards, one per `part` its rows name; search shows one card. Keyed by caption,
+        // so a write (a slider mid-drag) never rebuilds a card under the pointer.
+        function partOf(spec: var): string { return root.searching ? "" : String(spec.part ?? "") }
+        readonly property var parts: [...new Set(group.modelData.rows.map(spec => group.partOf(spec)))]
+        Repeater {
+            model: ScriptModel { values: group.parts }
             ColumnLayout {
-                id: groupRows
-                anchors.left: parent.left
-                anchors.right: parent.right
-                spacing: 0
-                Repeater {
-                    model: ScriptModel { objectProp: "modelKey"; values: group.modelData.rows }
-                    IrisSetting {
-                        required property var modelData
-                        required property int index
-                        Layout.fillWidth: true
-                        spec: modelData
-                        highlight: root.query
-                        last: index === group.modelData.rows.length - 1
+                id: part
+                required property string modelData
+                required property int index
+                readonly property var rows: group.modelData.rows.filter(spec => group.partOf(spec) === part.modelData)
+                Layout.fillWidth: true
+                Layout.topMargin: part.index > 0 ? 12 * root.d : 0
+                spacing: 6 * root.d
+                IrisText {
+                    visible: text.length > 0
+                    Layout.leftMargin: 16 * root.d
+                    text: part.modelData.length > 0 ? Translation.tr(part.modelData) : ""
+                    color: IrisStyle.label
+                    font.family: IrisStyle.fontTitle
+                    font.pixelSize: IrisStyle.typeMeta
+                    font.weight: IrisStyle.weight(Font.DemiBold)
+                }
+                Rectangle {
+                    Layout.fillWidth: true
+                    implicitHeight: groupRows.implicitHeight
+                    radius: IrisStyle.radiusTile
+                    color: IrisStyle.readingCard
+                    ColumnLayout {
+                        id: groupRows
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        spacing: 0
+                        Repeater {
+                            model: ScriptModel { objectProp: "modelKey"; values: part.rows }
+                            IrisSetting {
+                                required property var modelData
+                                required property int index
+                                Layout.fillWidth: true
+                                spec: modelData
+                                highlight: root.query
+                                last: index === part.rows.length - 1
+                            }
+                        }
                     }
                 }
             }

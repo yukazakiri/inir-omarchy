@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/snowarch/inir/releases"><img src="https://img.shields.io/badge/version-2.32.0-blue?style=flat-square" alt="Version"></a>
+  <a href="https://github.com/snowarch/inir/releases"><img src="https://img.shields.io/badge/version-2.33.0-blue?style=flat-square" alt="Version"></a>
   <a href="https://github.com/snowarch/inir/stargazers"><img src="https://img.shields.io/github/stars/snowarch/inir?style=flat-square" alt="Stars"></a>
   <a href="https://discord.gg/pAPTfAhZUJ"><img src="https://img.shields.io/badge/Discord-join-5865F2?style=flat-square&logo=discord&logoColor=white" alt="Discord"></a>
   <a href="../../LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-green?style=flat-square" alt="License"></a>
@@ -167,7 +167,7 @@ Wayland → GPU
 - **9가지 글로벌 스타일**: Material(단색), Cards, Aurora(글래스 블러), iNiR(TUI 영감), Angel(네오 브루탈리즘), Regalia(검은 섀시, 따뜻한 아이보리 잉크, 절제된 샴페인 장식), ZZZ(포스터 판), Cookie Shapes(움직이는 도형), Editorial(종이와 잉크 타이포그래피)
 - **배경화면 기반 동적 색상**: Material You로 시스템 전체에
 - **10가지 터미널·TUI 도구 자동 테마**: foot, kitty, alacritty, ghostty, wezterm, starship, fuzzel, btop, lazygit, yazi
-- **앱 테마**: GTK3/4, Qt(plasma-integration과 darkly), Firefox(MaterialFox), Discord/Vesktop(System24), Zed, Spicetify, Steam, SDDM
+- **앱 테마**: GTK3/4, Qt(plasma-integration과 darkly), Firefox, Discord/Vesktop(System24), Zed, Spicetify, Steam, SDDM
 - **테마 프리셋**: Gruvbox, Catppuccin, Rosé Pine 등, 또는 직접 만들기
 - **동영상 배경화면**: mp4/webm/gif, 블러는 선택. 성능을 위해 첫 프레임 고정도 가능
 - **데스크톱 위젯**: 모든 위젯에 하나의 디자인(iRiS, Material, iNstrument, Readout), iOS처럼 넘어가는 스택, 아래 배경화면을 따라가는 잉크
@@ -249,6 +249,8 @@ inir logs                       # check runtime logs
 inir doctor                     # auto-diagnose and fix
 inir update                     # pull + migrate + restart
 ```
+
+**지원 배포판:** Arch. 이 fork는 XBPS 기반 Void Linux glibc + runit용 자동화·검증 설치 경로도 제공합니다. Void는 [VOID.md](../VOID.md), 패키지는 [PACKAGES.md](../PACKAGES.md)를 참조하세요.
 
 `./setup install`이 원하는 방식이 아니라면:
 

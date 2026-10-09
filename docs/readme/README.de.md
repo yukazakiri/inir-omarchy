@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/snowarch/inir/releases"><img src="https://img.shields.io/badge/version-2.32.0-blue?style=flat-square" alt="Version"></a>
+  <a href="https://github.com/snowarch/inir/releases"><img src="https://img.shields.io/badge/version-2.33.0-blue?style=flat-square" alt="Version"></a>
   <a href="https://github.com/snowarch/inir/stargazers"><img src="https://img.shields.io/github/stars/snowarch/inir?style=flat-square" alt="Stars"></a>
   <a href="https://discord.gg/pAPTfAhZUJ"><img src="https://img.shields.io/badge/Discord-join-5865F2?style=flat-square&logo=discord&logoColor=white" alt="Discord"></a>
   <a href="../../LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-green?style=flat-square" alt="License"></a>
@@ -167,7 +167,7 @@ Ich wollte, dass mein Desktop auf eine bestimmte Art aussieht und funktioniert, 
 - **9 globale Stile**: Material (deckend), Cards, Aurora (Glass mit Blur), iNiR (TUI-inspiriert), Angel (Neo-Brutalismus), Regalia (schwarzes Chassis, warme Elfenbeintinte, zurückhaltende Champagner-Details), ZZZ (Poster-Platten), Cookie Shapes (animierte Formen), Editorial (Papier-und-Tinte-Typografie)
 - **Dynamische Farben aus dem Hintergrund** über Material You, systemweit
 - **10 Terminal- und TUI-Werkzeuge automatisch gethemt**: foot, kitty, alacritty, ghostty, wezterm, starship, fuzzel, btop, lazygit, yazi
-- **App-Theming**: GTK3/4, Qt (über plasma-integration und darkly), Firefox (MaterialFox), Discord/Vesktop (System24), Zed, Spicetify, Steam, SDDM
+- **App-Theming**: GTK3/4, Qt (über plasma-integration und darkly), Firefox, Discord/Vesktop (System24), Zed, Spicetify, Steam, SDDM
 - **Theme-Vorlagen**: Gruvbox, Catppuccin, Rosé Pine und mehr, oder deine eigene
 - **Video-Hintergründe**: mp4/webm/gif mit optionalem Blur, oder das erste Bild eingefroren für mehr Leistung
 - **Desktop-Widgets**: ein Design für alle (iRiS, Material, iNstrument oder Readout), Stapel, die sich wie unter iOS drehen, und Tinte, die dem Hintergrund darunter folgt
@@ -249,6 +249,8 @@ inir logs                       # check runtime logs
 inir doctor                     # auto-diagnose and fix
 inir update                     # pull + migrate + restart
 ```
+
+**Unterstützte Distributionen:** Arch; dieser Fork unterstützt zusätzlich einen getesteten automatisierten Void-Linux-glibc+runit-Pfad über XBPS. Siehe [VOID.md](../VOID.md) für Void und [PACKAGES.md](../PACKAGES.md) für Paketdetails.
 
 Andere Wege, falls `./setup install` nicht das ist, was du willst:
 

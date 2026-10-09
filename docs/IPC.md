@@ -153,7 +153,7 @@ Floating tools (Super+G): notes, images, crosshair, recorder, resources and othe
 | Function | Description |
 |----------|-------------|
 | `toggle` | Open/close Floating tools |
-| `tool` | Show or hide one floating tool by id (`crosshair`, `fpsLimiter`, `floatingImage`, `recorder`, `resources`, `notes`, `discord`, `volumeMixer`, `notifications`): `on`, `off` or `toggle` |
+| `tool` | Show or hide one floating tool by id (`crosshair`, `fpsLimiter`, `floatingImage`, `recorder`, `resources`, `notes`, `discord`, `volumeMixer`, `notifications`, `gamePerformance`): `on`, `off` or `toggle` |
 
 ```kdl
 Super+G { spawn "inir" "overlay" "toggle"; }
@@ -295,6 +295,19 @@ Super+Alt+L allow-when-locked=true { spawn "inir" "lock" "activate"; }
 
 ---
 
+### loginScreen
+
+The login screen you see after starting the computer. It wears your wallpaper and colours.
+
+| Function | Description |
+|----------|-------------|
+| `set <look>` | `auto` (iRiS while you use iRiS, Classic otherwise), `classic` or `iris` |
+| `style <style>` | How the iRiS login is composed: `cover` (your picture sharp, the clock in a corner), `frame` (the picture hung in a mat) or `lens` (the time cut out of the picture) |
+| `status` | Print the choice and the look it gives (e.g. `auto (iris, lens)`), or `not installed` |
+| `sync` | Copy the current colours, wallpaper and style to the login screen now |
+
+---
+
 ### memory
 
 Memory pressure monitoring for JSGCHeap accumulation (Qt V4 memfd leak). Notifies user when memory is high, lets them decide when to restart.
@@ -336,7 +349,7 @@ Close window confirmation dialog. Shows a prompt before closing the focused wind
 | `close` | Dismiss the dialog without closing |
 
 ```kdl
-Mod+Q repeat=false { spawn "inir" "close-window"; }
+Mod+Q repeat=false allow-inhibiting=false { spawn "inir" "close-window"; }
 ```
 
 By default, confirmation is disabled (closes immediately). Enable it in settings or config:
@@ -521,6 +534,7 @@ Wallpaper picker with grid, coverflow and compact launcher styles.
 | `preview <path>` | Show a wallpaper on the desktop without applying it: no config write, no recoloring |
 | `cancelPreview` | Drop the preview and go back to the applied wallpaper |
 | `kind <name>` | Show only one kind of wallpaper in the library: `all`, `still`, `live` (videos) or `gif`. iRiS only; the filter also sits beside the search field whenever the folder holds more than one kind |
+| `move <step>` | Move the gallery's selection by that many tiles, as the arrow keys do (negative goes back); the ring and the row glide and the desktop preview follows. iRiS only, while the picker is open |
 | `browse <source> <query>` | Open the picker on a source — `library`, `wallhaven` or `live` (anime live wallpapers) — with a search, a folder to open (`~/Videos`), or `-` for none. Sources are an iRiS feature; other families just open the picker |
 | `status` | Return picker style, open surface, target monitor and selection target as JSON |
 
@@ -735,7 +749,7 @@ Shared multi-provider AI service. It supports Gemini, OpenAI-compatible chat and
 
 ### packageSearch
 
-Package search service. Searches pacman repos and installed packages.
+Package search service. Searches pacman/AUR or XBPS repositories and installed packages.
 
 | Function | Description |
 |----------|-------------|
@@ -786,6 +800,28 @@ Short notices when something is plugged in, connected, unplugged or lost: networ
 
 ---
 
+### bluetooth
+
+The Bluetooth adapter as every family shows it. `simulate` lets you see the Bluetooth surfaces without the hardware.
+
+| Function | Description |
+|----------|-------------|
+| `status` | Print `on`, `off`, `no adapter` or how many devices are connected, marked `(simulated)` while simulating |
+| `simulate <state>` | Pretend the adapter is `off`, `on`, has a number of connected devices (`2`) or is missing (`none`) until `clear` or a restart. For testing |
+
+---
+
+### battery
+
+The laptop battery as every family shows it. `simulate` lets you see the battery surfaces on a machine without one.
+
+| Function | Description |
+|----------|-------------|
+| `status` | Print the level and whether it is charging, discharging or plugged in, marked `(simulated)` while simulating |
+| `simulate <spec>` | Pretend the battery is at a level and state until the shell restarts: `14`, `"14 charging"`, `full` or `off`. Never suspends the machine. For testing |
+
+---
+
 ### network
 
 Whether the shell can reach the internet, as NetworkManager sees it. Surfaces that show online content (wallpaper sources, news, anime, weather, calendars, lyrics) read this to say why they are empty instead of failing quietly.
@@ -795,6 +831,7 @@ Whether the shell can reach the internet, as NetworkManager sees it. Surfaces th
 | `status` | Print the state as JSON: `online`, `connectivity` (`full`, `limited`, `portal`, `none`, `unknown`), connection name |
 | `check` | Ask NetworkManager to check connectivity again, for example after signing in to a captive portal |
 | `simulate <state>` | Pretend the connectivity is `none`, `limited`, `portal` or `full` until the shell restarts; any other value clears it. For testing |
+| `simulateLink <spec>` | Pretend the link is `"wifi 40"` (a signal strength), `searching`, `connecting`, `"radio off"`, `ethernet` or `none` (no adapter) until `off` or a restart. For testing |
 
 ---
 
@@ -878,6 +915,7 @@ iRiS bar and Island design. Available while the iRiS bar is enabled.
 | `morph` | Set how iRiS morphs: `direct`, `liquid`, `glide`, `snap`, `elastic` or `instant` |
 | `set` | Set any iRiS option by path, e.g. `iris.appearance.theme.pieceShape squircle` or `iris.bubbles.scale 120` (values are JSON when they parse) |
 | `adaptive` | How much the wallpaper shapes iRiS, `0`-`100`; any other word prints what was read from the wallpaper |
+| `tokens` | JSON with the colours iRiS resolved for the current look and the contrast of each text, accent and fill on the surface it sits on (worst case over glass), plus the ones below their target |
 | `spotlight` | Open Spotlight with a query already typed, e.g. `firefox` or `12*7` (empty for suggestions); while it is open, replaces the query |
 | `spotlightClose` | Close Spotlight |
 | `orbit` | Open Orbit with a search already typed, e.g. `firefox` (empty for all the workspaces) |
@@ -1016,6 +1054,7 @@ Shell update checker. Monitors the git repo for new commits and shows an update 
 | `dismiss` | Dismiss update notification |
 | `undismiss` | Un-dismiss update notification |
 | `diagnose` | Dump update state as JSON |
+| `simulate <state>` | `on` fakes a pending update to see the bubble, card and notification, `off` clears it; git and config are untouched and Update only plays a pretend run in the terminal. For testing |
 
 ---
 
@@ -1028,6 +1067,7 @@ Notification management.
 | `test` | Send test notifications |
 | `clearAll` | Dismiss all notifications |
 | `toggleSilent` | Toggle Do Not Disturb mode |
+| `invokeAction <identifier>` | Press a button on the newest notification that has it, as a click would (e.g. `open` on a new iNiR notice) |
 
 ---
 

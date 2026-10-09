@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/snowarch/inir/releases"><img src="https://img.shields.io/badge/version-2.32.0-blue?style=flat-square" alt="Version"></a>
+  <a href="https://github.com/snowarch/inir/releases"><img src="https://img.shields.io/badge/version-2.33.0-blue?style=flat-square" alt="Version"></a>
   <a href="https://github.com/snowarch/inir/stargazers"><img src="https://img.shields.io/github/stars/snowarch/inir?style=flat-square" alt="Stars"></a>
   <a href="https://discord.gg/pAPTfAhZUJ"><img src="https://img.shields.io/badge/Discord-join-5865F2?style=flat-square&logo=discord&logoColor=white" alt="Discord"></a>
   <a href="../../LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-green?style=flat-square" alt="License"></a>
@@ -167,7 +167,7 @@ Wayland → GPU
 - **9 глобальных стилей**: Material (сплошной), Cards, Aurora (стекло с размытием), iNiR (в духе TUI), Angel (необрутализм), Regalia (чёрное шасси, тёплые цвета слоновой кости, сдержанная фурнитура цвета шампанского), ZZZ (плакатные плашки), Cookie Shapes (анимированные формы), Editorial (типографика бумаги и чернил)
 - **Динамические цвета из обоев** через Material You, по всей системе
 - **10 терминальных и TUI-инструментов с автотемой**: foot, kitty, alacritty, ghostty, wezterm, starship, fuzzel, btop, lazygit, yazi
-- **Темы для приложений**: GTK3/4, Qt (через plasma-integration и darkly), Firefox (MaterialFox), Discord/Vesktop (System24), Zed, Spicetify, Steam, SDDM
+- **Темы для приложений**: GTK3/4, Qt (через plasma-integration и darkly), Firefox, Discord/Vesktop (System24), Zed, Spicetify, Steam, SDDM
 - **Пресеты тем**: Gruvbox, Catppuccin, Rosé Pine и другие, или создайте свой
 - **Видеообои**: mp4/webm/gif с размытием по желанию или замороженный первый кадр для экономии
 - **Виджеты рабочего стола**: один дизайн для всех (iRiS, Material, iNstrument или Readout), стопки, которые листаются как в iOS, и чернила, которые подстраиваются под обои под ними
@@ -249,6 +249,8 @@ inir logs                       # check runtime logs
 inir doctor                     # auto-diagnose and fix
 inir update                     # pull + migrate + restart
 ```
+
+**Поддерживаемые дистрибутивы:** Arch; этот fork также добавляет проверенный автоматизированный путь для Void Linux glibc + runit через XBPS. Для Void см. [VOID.md](../VOID.md), для пакетов — [PACKAGES.md](../PACKAGES.md).
 
 Другие способы, если `./setup install` вам не подходит:
 
