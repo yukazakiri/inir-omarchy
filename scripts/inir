@@ -3159,6 +3159,54 @@ ensure_service_unit_available() {
     fi
 }
 
+# Swap the desktop shell inside the live session (no logout). The compositor
+# session, windows and apps are untouched: only the shell process changes.
+run_shell_switch_command() {
+    local action="${1:-status}"
+    shift || true
+
+    # The launcher lives in ~/.local/bin while the helper ships inside the
+    # shell payload. Resolve it from the known payload locations instead of
+    # resolve_config_dir: that probes for a *running* Quickshell instance, and
+    # while the Omarchy shell is the one running it resolves to Omarchy's shell
+    # directory, not to iNiR's payload. This command has to work precisely when
+    # the other shell owns the session.
+    local helper="" candidate
+    for candidate in         "${script_dir}/shell-switch.sh" \
+        "${user_config_dir}/scripts/shell-switch.sh" \
+        "${system_config_dir}/scripts/shell-switch.sh" \
+        "${fallback_system_config_dir}/scripts/shell-switch.sh"; do
+        [[ -n "$candidate" && -x "$candidate" ]] && { helper="$candidate"; break; }
+    done
+    if [[ -z "$helper" ]]; then
+        echo "shell-switch helper not found in the iNiR payload" >&2
+        echo "Reinstall with: ./setup install" >&2
+        return 1
+    fi
+
+    case "$action" in
+        status|current)
+            exec "$helper" status
+            ;;
+        toggle)
+            exec "$helper" toggle
+            ;;
+        to-inir|inir|use-inir)
+            exec "$helper" to-inir
+            ;;
+        to-omarchy|omarchy|hyprland|use-omarchy)
+            exec "$helper" to-omarchy
+            ;;
+        -h|--help|help)
+            exec "$helper" --help
+            ;;
+        *)
+            echo "Usage: inir shell [status|toggle|to-inir|to-omarchy]" >&2
+            return 2
+            ;;
+    esac
+}
+
 run_service_command() {
     local action="${1:-status}"
     shift || true
@@ -4753,6 +4801,9 @@ case "$command_name" in
         ;;
     service)
         run_service_command "$@"
+        ;;
+    shell|shell-switch)
+        run_shell_switch_command "$@"
         ;;
     cleanup-orphans)
         cleanup_orphans

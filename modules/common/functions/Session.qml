@@ -109,11 +109,22 @@ Singleton {
         Quickshell.execDetached(["/usr/bin/pkill", "-i", "Hyprland"]);
     }
 
+    // Replace the desktop shell inside the running session: no logout, no
+    // session change. scripts/shell-switch.sh stops the other shell (a single
+    // Quickshell instance each, sharing the tray bus name) and starts this one.
+    // The compositor, every window and every running app stay untouched, so
+    // this works both under a Niri session and under an Omarchy Hyprland one.
+    function switchShell(dest) {
+        if (dest !== "omarchy" && dest !== "inir")
+            return;
+        Quickshell.execDetached([Quickshell.shellPath("scripts/shell-switch.sh"), "to-" + dest]);
+    }
+
     // Switch the login compositor (Hyprland <-> Niri) and log straight back
     // into it. Implemented by scripts/compositor-switch.sh: it rewrites the
     // SDDM autologin Session= (needs one polkit/sudo auth) and exits the
     // compositor; SDDM Relogin=true returns directly to the target session.
-    // No terminal here, so auth goes through the polkit GUI agent.
+    // This one changes the session; switchShell() above only changes the shell.
     function switchCompositor(dest) {
         if (dest !== "hyprland" && dest !== "niri")
             return;

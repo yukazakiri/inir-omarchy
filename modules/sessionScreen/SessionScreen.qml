@@ -428,7 +428,7 @@ Scope {
                         id: sessionSwitchOmarchy
                         buttonIcon: "swap_horiz"
                         buttonText: Translation.tr("Omarchy")
-                        onClicked:  { Session.switchCompositor("hyprland"); sessionRoot.hide() }
+                        onClicked:  { Session.switchShell("omarchy"); sessionRoot.hide() }
                         onFocusChanged: { if (focus) sessionRoot.subtitle = buttonText }
                         KeyNavigation.up: sessionTaskManager
                         KeyNavigation.left: sessionFirmwareReboot
