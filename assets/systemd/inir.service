@@ -1,11 +1,28 @@
 [Unit]
 Description=iNiR shell
-# Niri owns the graphical-session environment.  Since niri.service is
+# Niri owns the graphical-session environment.  Since the compositor unit is
 # Type=notify, ordering after it guarantees DISPLAY, WAYLAND_DISPLAY and
 # NIRI_SOCKET have already been published to the user manager before iNiR starts.
-PartOf=niri.service
-Requisite=niri.service
-After=niri.service
+#
+# Two Niri session topologies are supported and both are named here, because
+# dependency lists cannot be reset from a drop-in:
+#   niri.service                     stock niri-session / systemd-run
+#   wayland-wm@niri.desktop.service  uwsm sessions, e.g. Omarchy's
+#                                    omarchy-niri.desktop (migration 045)
+# Ordering against a unit that does not exist is ignored, so naming both is
+# harmless on a machine that only has one of them.
+PartOf=niri.service wayland-wm@niri.desktop.service
+After=niri.service wayland-wm@niri.desktop.service
+# Requisite= cannot express "either compositor": it requires every listed unit
+# to be active, so a uwsm session (where niri.service never starts) or a stock
+# session would each block the other. ExecCondition can, and unlike a
+# dependency it is resettable from a drop-in.
+#
+# Which session may start the shell automatically is decided by the wants link,
+# not by this gate: the gate only refuses to run a shell with no compositor
+# session at all (a bare TTY, KDE, GNOME). Hyprland is accepted so the shell
+# can be swapped in place inside a live Omarchy session (scripts/shell-switch.sh).
+ExecCondition=/bin/sh -c 'systemctl --user is-active --quiet niri.service || systemctl --user is-active --quiet wayland-wm@niri.desktop.service || [ -n "$NIRI_SOCKET" ] || [ -n "$HYPRLAND_INSTANCE_SIGNATURE" ]'
 # Keep the StatusNotifier watcher ready before desktop autostart applications
 # register tray items.  Niri also orders itself before this target.
 Before=xdg-desktop-autostart.target

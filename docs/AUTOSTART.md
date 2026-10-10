@@ -25,6 +25,28 @@ inir service disable    # remove it
 inir service status     # check state
 ```
 
+### uwsm-managed Niri sessions (Omarchy)
+
+Omarchy's Niri entry (`/usr/local/share/wayland-sessions/omarchy-niri.desktop`)
+starts the compositor through uwsm, so Niri runs inside the generated
+`wayland-wm@niri.desktop.service` and `niri.service` never becomes active.
+In that topology the stock `Requisite=niri.service` would refuse every start,
+so the shell would silently never come up.
+
+Migration `045-omarchy-uwsm-session` detects that session and adds:
+
+- `~/.config/systemd/user/inir.service.d/omarchy-uwsm.conf` — resets
+  `Requisite=`, and adds `After=`/`PartOf=` for `wayland-wm@niri.desktop.service`
+  so iNiR stops with the session and never leaks into the next login
+- `~/.config/systemd/user/wayland-wm@niri.desktop.service.wants/inir.service` —
+  the wants link that starts iNiR on Omarchy-Niri login only
+
+Startup is still gated by the wants link, so iNiR does not appear under
+Hyprland, KDE, or GNOME. `inir service enable` and the update/repair paths
+treat both `niri.service` and `wayland-wm@niri.desktop.service` as valid
+lifecycle owners. The migration is a no-op on machines without the
+Omarchy-Niri session; delete the drop-in if you stop using it.
+
 On Void without a usable systemd user manager, setup renders
 `~/.config/service/inir/run`. Turnstile provides the user-session lifecycle and
 environment directory when available; otherwise Niri owns a single runsvdir

@@ -2746,6 +2746,7 @@ if ! grep -Fq 'has_usable_systemd_user_manager && systemctl --user daemon-reload
 fi
 migration_021="$runtime_root/sdata/migrations/021-systemd-single-instance.sh"
 migration_022="$runtime_root/sdata/migrations/022-service-compositor-wants.sh"
+migration_045="$runtime_root/sdata/migrations/045-omarchy-uwsm-session.sh"
 migration_test_root="$(mktemp -d)"
 mkdir -p "$migration_test_root/bin" "$migration_test_root/config" "$migration_test_root/home"
 cat > "$migration_test_root/bin/systemctl" <<'SH'
@@ -2754,7 +2755,7 @@ cat > "$migration_test_root/bin/systemctl" <<'SH'
 exit 1
 SH
 chmod +x "$migration_test_root/bin/systemctl"
-for migration_file in "$migration_021" "$migration_022"; do
+for migration_file in "$migration_021" "$migration_022" "$migration_045"; do
     if ! (
         export HOME="$migration_test_root/home"
         export REPO_ROOT="$runtime_root"

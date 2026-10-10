@@ -333,22 +333,39 @@ ensure_user_inir_service_enabled() {
     fi
 
     [[ -f "$service_path" ]] || return 1
-    systemctl --user cat niri.service &>/dev/null || return 1
 
     local systemd_user_dir="${XDG_CONFIG_HOME}/systemd/user"
     local correct_wants_dir="${systemd_user_dir}/niri.service.wants"
-    local wants_dir link
-    for wants_dir in "$systemd_user_dir"/*.wants; do
+    # Omarchy's omarchy-niri.desktop session runs niri through uwsm, so the
+    # lifecycle owner there is the generated wayland-wm@niri.desktop.service
+    # (see sdata/migrations/045-omarchy-uwsm-session.sh). Links under either
+    # unit are legitimate; anything else is a leak.
+    local uwsm_wants_dir="${systemd_user_dir}/wayland-wm@niri.desktop.service.wants"
+    local uwsm_link="${uwsm_wants_dir}/inir.service"
+
+    local wants_dir link keep
+    for wants_dir in "${systemd_user_dir}"/*.wants; do
         [[ -d "$wants_dir" ]] || continue
         link="$wants_dir/inir.service"
         [[ -e "$link" || -L "$link" ]] || continue
-        [[ "$(realpath "$wants_dir" 2>/dev/null)" == "$(realpath "$correct_wants_dir" 2>/dev/null)" ]] && continue
+        keep=false
+        [[ "$(realpath "$wants_dir" 2>/dev/null)" == "$(realpath "$correct_wants_dir" 2>/dev/null)" ]] && keep=true
+        [[ "$(realpath "$wants_dir" 2>/dev/null)" == "$(realpath "$uwsm_wants_dir" 2>/dev/null)" ]] && keep=true
+        [[ "$keep" == true ]] && continue
         rm -f "$link" || return 1
         INIR_SERVICE_WIRING_CHANGED=1
     done
 
-    mkdir -p "$correct_wants_dir" || return 1
-    link="$correct_wants_dir/inir.service"
+    # A uwsm session owns the link there; niri.service never activates in that
+    # session, so do not also wire the stock wants directory.
+    if [[ -e "$uwsm_link" || -L "$uwsm_link" ]]; then
+        link="$uwsm_link"
+    else
+        systemctl --user cat niri.service &>/dev/null || return 1
+        mkdir -p "$correct_wants_dir" || return 1
+        link="$correct_wants_dir/inir.service"
+    fi
+
     local service_real link_real
     service_real="$(readlink -f "$service_path" 2>/dev/null || printf '%s' "$service_path")"
     link_real="$(readlink -f "$link" 2>/dev/null || true)"

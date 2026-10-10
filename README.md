@@ -315,7 +315,7 @@ Why it works so well together:
 - **Nothing leaks across the boundary.** iNiR is wired to start only under the Niri session and stop with it — it never haunts your Hyprland bar, and the Omarchy bar never follows you to Niri.
 - **Omarchy-safe.** No Omarchy package files are touched. Everything lives in user config (`~/.config/`), one SDDM autologin setting, and two files under `/usr/local/` — so `omarchy update` keeps working exactly as before.
 
-Setup is the stock iNiR install, plus the Omarchy wiring (Niri uwsm session, SDDM `Relogin=true`, iNiR autostart links). The companion repo bundles it into one installer:
+Setup is the stock iNiR install, plus the Omarchy wiring: the companion repo installs the Niri uwsm session and the SDDM session setter, while iNiR's own migration `045-omarchy-uwsm-session` wires the shell to the uwsm session automatically (no manual systemd steps). The companion repo bundles the system-side parts into one installer:
 
 ```bash
 git clone https://github.com/yukazakiri/omarchy-niri-switch.git
