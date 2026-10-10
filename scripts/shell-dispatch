@@ -1,0 +1,149 @@
+#!/usr/bin/env bash
+# shell-dispatch: run a desktop action against whichever Quickshell shell is
+# currently active.
+#
+# Hyprland keybindings are compositor-level and survive a shell swap, but the
+# commands they call (omarchy-menu, omarchy-shell ...) are Omarchy-shell IPC.
+# With iNiR running those calls go nowhere, so the key does nothing.
+#
+# This routes by action name instead of by shell, so one binding serves both:
+#
+#   shell-dispatch menu            -> launcher / start menu
+#   shell-dispatch apps            -> app list
+#   shell-dispatch system          -> power / session menu
+#   shell-dispatch settings        -> settings
+#   shell-dispatch keybindings     -> shortcut cheatsheet
+#   shell-dispatch volume-up       -> ... etc
+#
+# With Omarchy active it calls the original Omarchy command verbatim, so the
+# existing behaviour is preserved exactly. Only the iNiR side is a mapping.
+
+set -u
+
+SELF_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+
+have()   { command -v "$1" >/dev/null 2>&1; }
+log()    { printf 'shell-dispatch: %s\n' "$1" >&2; }
+
+inir_launcher() {
+    for c in "$HOME/.local/bin/inir" /usr/local/bin/inir /usr/bin/inir; do
+        [ -x "$c" ] && { printf '%s' "$c"; return 0; }
+    done
+    command -v inir 2>/dev/null && return 0
+    return 1
+}
+
+active_shell() {
+    if [ -x "$SELF_DIR/shell-switch.sh" ]; then
+        "$SELF_DIR/shell-switch.sh" status 2>/dev/null && return 0
+    fi
+    command -v inir >/dev/null 2>&1 || { printf 'omarchy'; return 0; }
+    if systemctl --user is-active --quiet inir.service 2>/dev/null; then
+        printf 'inir'
+    else
+        printf 'omarchy'
+    fi
+}
+
+# iNiR IPC equivalent for each Omarchy action. Verified against the running
+# shell; a target the active panel family does not register is skipped by the
+# `inir` call itself rather than erroring here.
+INIR_MAP_MENU="taskview toggle"
+INIR_MAP_APPS="taskview toggle"
+INIR_MAP_SYSTEM="session toggle"
+INIR_MAP_CAPTURE="region menu"
+INIR_MAP_TOGGLE="overview toggle"
+INIR_MAP_HARDWARE="settingsNav settings/hardware"
+INIR_MAP_THEME="settingsNav settings/appearance"
+INIR_MAP_BACKGROUND="wallpaperSelector toggle"
+INIR_MAP_KEYBINDINGS="cheatsheet toggle"
+INIR_MAP_EMOJIS="globalActions open"
+INIR_MAP_CLIPBOARD="clipboard toggle"
+INIR_MAP_AUDIO="controlPanel toggle"
+INIR_MAP_BLUETOOTH="controlPanel toggle"
+INIR_MAP_NETWORK="controlPanel toggle"
+INIR_MAP_MONITOR="controlPanel toggle"
+INIR_MAP_CALENDAR="dashboard toggle"
+INIR_MAP_POWER="session toggle"
+INIR_MAP_NOTIFY_ONE="notifications invokeAction"
+INIR_MAP_NOTIFY_ALL="notifications clearAll"
+INIR_MAP_NOTIFY_LAST="notifications invokeAction"
+INIR_MAP_NOTIFY_HISTORY="notifications toggle"
+INIR_MAP_RECORD="region recordWithSound"
+
+usage() {
+    cat <<'EOF'
+Usage: shell-dispatch <action>
+
+  menu apps system capture toggle hardware theme background keybindings
+  emojis clipboard audio bluetooth network monitor calendar power
+  notify-one notify-all notify-last notify-history record
+  volume-up volume-down mute mic-mute brightness-up brightness-down
+EOF
+}
+
+action="$1"
+[ $# -gt 0 ] && shift || true
+
+case "$action" in
+    -h|--help|help|"") usage; exit 0 ;;
+esac
+
+shell="$(active_shell)"
+
+# --- iNiR -------------------------------------------------------------------
+if [ "$shell" = "inir" ] && inir_launcher >/dev/null; then
+    INIR="$(inir_launcher)"
+
+    case "$action" in
+        volume-up)     exec "$INIR" audio volumeUp ;;
+        volume-down)   exec "$INIR" audio volumeDown ;;
+        mute)          exec "$INIR" audio mute ;;
+        mic-mute)      exec "$INIR" audio micMute ;;
+        brightness-up)   exec "$INIR" brightness increment ;;
+        brightness-down) exec "$INIR" brightness decrement ;;
+    esac
+
+    var="INIR_MAP_$(printf '%s' "$action" | tr 'a-z-' 'A-Z_')"
+    target="${!var:-}"
+    if [ -n "$target" ]; then
+        # shellcheck disable=SC2086
+        exec "$INIR" $target
+    fi
+
+    log "no iNiR equivalent for '$action' (shell: $shell)"
+    exit 1
+fi
+
+# --- Omarchy ----------------------------------------------------------------
+# Unchanged behaviour: hand the action straight to the Omarchy command.
+case "$action" in
+    menu)            exec omarchy-menu toggle ;;
+    apps)            exec omarchy-menu toggle apps ;;
+    system|power)    exec omarchy-menu toggle system ;;
+    capture)         exec omarchy-menu toggle capture ;;
+    toggle)          exec omarchy-menu toggle toggle ;;
+    hardware)        exec omarchy-menu toggle hardware ;;
+    theme)           exec omarchy-menu toggle theme ;;
+    background)      exec omarchy-menu toggle background ;;
+    keybindings)     exec omarchy-menu-keybindings ;;
+    emojis)          exec omarchy-shell shell toggle omarchy.emojis ;;
+    clipboard)       exec omarchy-shell shell toggle omarchy.clipboard ;;
+    audio)           exec omarchy-shell shell toggle omarchy.audio ;;
+    bluetooth)       exec omarchy-shell shell toggle omarchy.bluetooth ;;
+    network)         exec omarchy-shell shell toggle omarchy.network ;;
+    monitor)         exec omarchy-shell shell toggle omarchy.monitor ;;
+    calendar)        exec omarchy-shell shell toggle omarchy.clock ;;
+    notify-one)      exec omarchy-shell notifications dismissOne ;;
+    notify-all)      exec omarchy-shell notifications dismissAll ;;
+    notify-last)     exec omarchy-shell notifications invokeLast ;;
+    notify-history)  exec omarchy-shell notifications showHistory ;;
+    record)          exec omarchy-capture-screenrecording --stop-recording ;;
+    volume-up)       exec wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%+ ;;
+    volume-down)     exec wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%- ;;
+    mute)            exec wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle ;;
+    mic-mute)        exec wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle ;;
+    brightness-up)   exec brightnessctl set 5%+ ;;
+    brightness-down) exec brightnessctl set 5%- ;;
+    *)               usage >&2; exit 2 ;;
+esac
