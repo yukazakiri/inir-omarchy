@@ -314,6 +314,7 @@ Why it works so well together:
   - Scriptable too: `inir globalActions run switch-to-omarchy`, or `scripts/compositor-switch.sh switch niri`
 - **Nothing leaks across the boundary.** iNiR is wired to start only under the Niri session and stop with it — it never haunts your Hyprland bar, and the Omarchy bar never follows you to Niri.
 - **Omarchy-safe.** No Omarchy package files are touched. Everything lives in user config (`~/.config/`), one SDDM autologin setting, and two files under `/usr/local/` — so `omarchy update` keeps working exactly as before.
+- **Shared-HOME theming isolation.** Both shells use one `$HOME`, so iNiR's external app-theming pipeline stays off here: `appearance.wallpaperTheming.enableAppsAndShell`, `enableQtApps` and `enableTerminal` are all `false` in `~/.config/inir/config.json`, and the pipeline treats that as authoritative (script flag reads are null-safe; `IconThemeService` only applies system-wide when desktop theming is on). iNiR still themes itself; Omarchy's GTK/icon/Qt settings are never rewritten on shell boot or wallpaper change.
 
 Setup is the stock iNiR install, plus the Omarchy wiring: the companion repo installs the Niri uwsm session and the SDDM session setter, while iNiR's own migration `045-omarchy-uwsm-session` wires the shell to the uwsm session automatically (no manual systemd steps). The companion repo bundles the system-side parts into one installer:
 

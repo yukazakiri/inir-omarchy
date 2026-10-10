@@ -717,12 +717,12 @@ main() {
             (.background.thumbnailPath // ""),
             (.appearance.wallpaperTheming.useBackdropForColors // false),
             (.panelFamily // "ii"),
-            (.waffles.background.backdrop.useMainWallpaper // true),
+            (if .waffles.background.backdrop.useMainWallpaper == null then true else .waffles.background.backdrop.useMainWallpaper end),
             (.waffles.background.backdrop.wallpaperPath // ""),
-            (.background.backdrop.useMainWallpaper // true),
+            (if .background.backdrop.useMainWallpaper == null then true else .background.backdrop.useMainWallpaper end),
             (.background.backdrop.wallpaperPath // ""),
-            (.appearance.wallpaperTheming.enableAppsAndShell // true),
-            (.appearance.wallpaperTheming.enableTerminal // true),
+            (if .appearance.wallpaperTheming.enableAppsAndShell == null then true else .appearance.wallpaperTheming.enableAppsAndShell end),
+            (if .appearance.wallpaperTheming.enableTerminal == null then true else .appearance.wallpaperTheming.enableTerminal end),
             (.appearance.wallpaperTheming.terminalColorAdjustments.saturation // 0.65),
             (.appearance.wallpaperTheming.terminalColorAdjustments.brightness // 0.60),
             (.appearance.wallpaperTheming.terminalColorAdjustments.harmony // .appearance.wallpaperTheming.terminalGenerationProps.harmony // 0.40),
@@ -732,13 +732,13 @@ main() {
             (.appearance.wallpaperTheming.terminalGenerationProps.termFgBoost // 0.35),
             (.appearance.softenColors | tostring),
             (.appearance.wallpaperTheming.terminalGenerationProps.forceDarkMode // false),
-            (.appearance.wallpaperTheming.enableVesktop // true),
+            (if .appearance.wallpaperTheming.enableVesktop == null then true else .appearance.wallpaperTheming.enableVesktop end),
             (.background.hideUpscaleNotification // false),
             (if .appearance.customTheme.darkmode == null then true else .appearance.customTheme.darkmode end),
             (.appearance.wallpaperTheming.autoDarkLightMode // false),
             (.appearance.colorInvert // false),
             (.iris.appearance.scheme // "auto"),
-            (.iris.appearance.materialForApps // true)
+            (if .iris.appearance.materialForApps == null then true else .iris.appearance.materialForApps end)
         ] | .[]' "$SHELL_CONFIG_FILE" 2>/dev/null)
     fi
     cfg_palette_type="${_cfg[0]:-auto}"

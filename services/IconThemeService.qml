@@ -21,10 +21,17 @@ Singleton {
     property bool _initialized: false
     property bool _restartQueued: false
 
+    // System-wide icon application (gsettings/kdeglobals/qtct/gtk ini) is
+    // shared with every other shell on the machine. The shell's own icon
+    // lookups (currentTheme/dockTheme) are always active; writing the system
+    // theme follows the desktop app-theming flag, so booting iNiR on an
+    // Omarchy session does not repoint every app's icons.
+    readonly property bool _systemApplyAllowed: !(Config.options?.appearance?.wallpaperTheming?.enableAppsAndShell === false)
+
     // The mode is known only once the colours load (it starts dark): pick the sibling again then and on every switch,
     // or a light scheme keeps the dark variant's white icons.
     readonly property bool _dark: Appearance.m3colors.darkmode
-    on_DarkChanged: if (root._initialized && root.currentTheme.length > 0) root._apply(root.currentTheme, true)
+    on_DarkChanged: if (root._initialized && root._systemApplyAllowed && root.currentTheme.length > 0) root._apply(root.currentTheme, true)
 
     // Smart icon resolution: preserve app-provided identity whenever possible.
     // Only repair the duplicated Electron resources path that is known-broken.
@@ -101,7 +108,10 @@ Singleton {
         if (savedTheme && String(savedTheme).trim().length > 0) {
             root.currentTheme = String(savedTheme).trim()
             _log("[IconThemeService] Restoring saved icon theme:", root.currentTheme)
-            root._apply(root.currentTheme, true)
+            // The shell itself always uses the saved theme for its own icons.
+            // The system-wide apply below is skipped when desktop app theming
+            // is off (shared machine: another shell owns the icon theme).
+            if (root._systemApplyAllowed) root._apply(root.currentTheme, true)
         } else {
             currentThemeProc.running = false
             currentThemeProc.running = true

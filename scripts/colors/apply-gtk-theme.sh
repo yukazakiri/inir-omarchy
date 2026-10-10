@@ -35,8 +35,10 @@ SHELL_CONFIG_FILE="$(inir_config_file)"
 enable_apps_shell="true"
 enable_qt_apps="true"
 if [[ -f "$SHELL_CONFIG_FILE" ]] && command -v jq &>/dev/null; then
-    enable_apps_shell=$(jq -r '.appearance.wallpaperTheming.enableAppsAndShell // true' "$SHELL_CONFIG_FILE")
-    enable_qt_apps=$(jq -r '.appearance.wallpaperTheming.enableQtApps // true' "$SHELL_CONFIG_FILE")
+    # NB: jq '//' treats explicit false as null, so '// true' would resurrect
+    # a disabled flag. Compare against null explicitly (same as config_bool).
+    enable_apps_shell=$(jq -r 'if .appearance.wallpaperTheming.enableAppsAndShell == null then true else .appearance.wallpaperTheming.enableAppsAndShell end' "$SHELL_CONFIG_FILE")
+    enable_qt_apps=$(jq -r 'if .appearance.wallpaperTheming.enableQtApps == null then true else .appearance.wallpaperTheming.enableQtApps end' "$SHELL_CONFIG_FILE")
 fi
 
 # Exit only when both shell/GTK and Qt app theming are disabled
@@ -67,7 +69,15 @@ if [[ "$THEME_MODE" != "light" && "$THEME_MODE" != "dark" ]]; then
         && THEME_MODE="light" || THEME_MODE="dark"
 fi
 CHOSEN_ICON_THEME=$(jq -r '.appearance.iconTheme // empty' "$SHELL_CONFIG_FILE" 2>/dev/null || true)
-[[ -z "$CHOSEN_ICON_THEME" ]] && CHOSEN_ICON_THEME=$(gsettings get org.gnome.desktop.interface icon-theme 2>/dev/null | tr -d "'" || true)
+# The icon theme is shared desktop state (gsettings, and kdeglobals/qtct below
+# read it back). Only take it over when desktop app theming is enabled: on a
+# machine shared with another shell (e.g. Omarchy) this would otherwise repoint
+# every app's icons on each run even with enableAppsAndShell=false.
+if [[ "$enable_apps_shell" == "false" ]]; then
+    CHOSEN_ICON_THEME=""
+else
+    [[ -z "$CHOSEN_ICON_THEME" ]] && CHOSEN_ICON_THEME=$(gsettings get org.gnome.desktop.interface icon-theme 2>/dev/null | tr -d "'" || true)
+fi
 APPLIED_ICON_THEME=""
 if [[ -n "$CHOSEN_ICON_THEME" ]]; then
     APPLIED_ICON_THEME=$("$SCRIPT_DIR/icon-theme-for-mode.sh" "$CHOSEN_ICON_THEME" "$THEME_MODE" 2>/dev/null || echo "$CHOSEN_ICON_THEME")
@@ -730,7 +740,12 @@ mkdir -p "$XDG_STATE_HOME/quickshell/user/generated"
 generate_pywalfox > "$XDG_STATE_HOME/quickshell/user/generated/pywalfox-colors.json"
 
 # Generate GTK3 CSS (legacy apps)
+# Desktop-level output: skip unless desktop app theming is enabled. An
+# unconditional write here restyles every GTK app on a shared machine.
 gtk_css_changed=false
+SKIP_GTK_CSS=false
+[[ "$enable_apps_shell" == "false" ]] && SKIP_GTK_CSS=true
+if [[ "$SKIP_GTK_CSS" != "true" ]]; then
 GTK3_CSS="$HOME/.config/gtk-3.0/gtk.css"
 mkdir -p "$(dirname "$GTK3_CSS")"
 break_symlink "$GTK3_CSS"
@@ -1020,8 +1035,13 @@ then
     gtk_css_changed=true
 fi
 
+fi # end SKIP_GTK_CSS (covers the GTK3 and GTK4 CSS blocks above)
+
 # Configure qt6ct to use the Darkly color scheme (fixes Dolphin and other Qt apps being white)
 # qt6ct is the platform theme (QT_QPA_PLATFORMTHEME=qt6ct) — it needs a color scheme
+SKIP_QTCT=false
+[[ "$enable_qt_apps" == "false" ]] && SKIP_QTCT=true
+if [[ "$SKIP_QTCT" != "true" ]]; then
 QT6CT_CONF="$HOME/.config/qt6ct/qt6ct.conf"
 mkdir -p "$(dirname "$QT6CT_CONF")"
 touch "$QT6CT_CONF"
@@ -1060,6 +1080,7 @@ custom_palette=true
 icon_theme=${CURRENT_QT5_ICON_THEME}
 style=${CURRENT_QT5_STYLE}
 EOF
+fi # end SKIP_QTCT
 
 # Keep static GTK settings aligned with GSettings. GTK applications are split
 # between the desktop settings service and settings.ini readers, so stale files
@@ -1148,8 +1169,10 @@ sync_gtk_settings_ini() {
     fi
 }
 
-sync_gtk_settings_ini "$HOME/.config/gtk-3.0/settings.ini" "$SCRIPT_DIR/../../defaults/gtk-3.0/settings.ini" true
-sync_gtk_settings_ini "$HOME/.config/gtk-4.0/settings.ini" "$SCRIPT_DIR/../../defaults/gtk-4.0/settings.ini" false
+if [[ "$enable_apps_shell" != "false" ]]; then
+    sync_gtk_settings_ini "$HOME/.config/gtk-3.0/settings.ini" "$SCRIPT_DIR/../../defaults/gtk-3.0/settings.ini" true
+    sync_gtk_settings_ini "$HOME/.config/gtk-4.0/settings.ini" "$SCRIPT_DIR/../../defaults/gtk-4.0/settings.ini" false
+fi
 
 # GTK user CSS is loaded per process. Refresh only consumers that are known to
 # stay alive across theme changes; restarting the GTK portal backend makes new
