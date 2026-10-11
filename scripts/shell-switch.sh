@@ -210,8 +210,25 @@ apply_omarchy_theme() {
         log "warning: omarchy theme refresh did not finish; re-run 'omarchy theme refresh'"
 }
 
+# omarchy-restart-shell can only bring the shell up through Hyprland: it spawns
+# it with `hyprctl dispatch hl.dsp.exec_cmd("omarchy-launch-shell")` so the shell
+# inherits the canonical session environment. With no live Hyprland that dispatch
+# fails ("is hyprland running?"), the shell is never spawned, and the command
+# gives up after its ping loop. So on a non-Hyprland compositor this swap can
+# never succeed, and attempting it is destructive: iNiR is stopped first, the
+# Omarchy shell never arrives, and only the fallback restarts iNiR again — the
+# desktop just bounces. Probe for a reachable Hyprland before anything is torn
+# down, so the refusal happens while the session is still whole.
+omarchy_shell_startable() {
+    have omarchy || return 1
+    have hyprctl || return 1
+    hyprctl version >/dev/null 2>&1 || return 1
+    return 0
+}
+
 start_omarchy_shell() {
     have omarchy || { log "omarchy command not found"; return 1; }
+    omarchy_shell_startable || { log "no running Hyprland to host the Omarchy shell"; return 1; }
     wait_tray_free 8 || log "warning: $TRAY_BUS_NAME still owned; the Omarchy shell may fail to start"
     # omarchy restart shell kills anything left on that config path, respawns it
     # from Hyprland (so it inherits the canonical session environment) and
@@ -255,6 +272,13 @@ to_omarchy() {
     if omarchy_running; then
         log "Omarchy is already the active shell"
         return 0
+    fi
+    # Refuse while iNiR is still running: stopping it here would only produce a
+    # stop, a failed Omarchy start, and a fallback restart — the restart loop.
+    if ! omarchy_shell_startable; then
+        log "this session is not Hyprland, so the Omarchy shell cannot start here"
+        log "iNiR was left running; nothing was switched"
+        return 1
     fi
     if session_locked; then
         log "session is locked — unlock before switching shells"
