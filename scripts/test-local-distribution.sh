@@ -45,6 +45,8 @@ check "Omarchy skips direct pacman -Syu" \
     grep -q 'Omarchy owns system upgrades' "$ROOT/sdata/dist-arch/install-deps.sh"
 check "Omarchy is detected as its own Arch variant" \
     grep -q 'OS_SPECIFIC_ID="omarchy"' "$ROOT/sdata/lib/dist-determine.sh"
+check "iNiR SDDM drop-in sorts after Omarchy's login drop-in" \
+    grep -q '99-zz-inir-theme.conf' "$ROOT/scripts/sddm/install-pixel-sddm.sh"
 
 # ── compositor_units adds the Omarchy uwsm unit ──────────────────────────────
 mkdir -p "$TMP/bin" "$TMP/sessions" "$TMP/config/inir" "$TMP/run"
