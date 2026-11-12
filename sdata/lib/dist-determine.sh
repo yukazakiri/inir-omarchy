@@ -17,7 +17,10 @@ function print_arch_info(){
     OS_GROUP_ID="arch"
     
     # Detect specific distro
-    if [[ -f /etc/cachyos-release ]] || grep -qiE '^ID="?cachyos"?$' /etc/os-release 2>/dev/null; then
+    if grep -qiE '^ID="?omarchy"?$' /etc/os-release 2>/dev/null; then
+      OS_SPECIFIC_ID="omarchy"
+      OS_PRETTY_NAME="Omarchy"
+    elif [[ -f /etc/cachyos-release ]] || grep -qiE '^ID="?cachyos"?$' /etc/os-release 2>/dev/null; then
       OS_SPECIFIC_ID="cachyos"
       OS_PRETTY_NAME="CachyOS"
     elif [[ -f /etc/endeavouros-release ]]; then

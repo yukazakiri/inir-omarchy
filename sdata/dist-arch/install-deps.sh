@@ -11,6 +11,28 @@ if ! command -v pacman >/dev/null 2>&1; then
   exit 1
 fi
 
+# Omarchy blocks a direct `pacman -Syu` so system upgrades go through
+# `omarchy update` (snapshot, keyrings, migrations, post-update hooks). iNiR
+# only needs the package databases and its own packages here, so on Omarchy it
+# skips the system upgrade instead of tripping that guard. The caller can run
+# `omarchy update` first when the local databases are stale.
+_arch_is_omarchy() {
+  [[ -r /etc/os-release ]] && grep -qiE '^ID="?omarchy"?$' /etc/os-release
+}
+
+_arch_system_upgrade() {
+  if _arch_is_omarchy; then
+    log_warning "Omarchy owns system upgrades; skipping direct pacman -Syu."
+    log_info "Run 'omarchy update' first if package installation fails, then rerun this install."
+    return 0
+  fi
+  if $ask; then
+    v pkg_sudo pacman -Syu
+  else
+    v pkg_sudo pacman -Syu --noconfirm
+  fi
+}
+
 #####################################################################################
 # Optional: install only a specific list of missing deps
 #####################################################################################
@@ -94,13 +116,7 @@ if [[ -n "${ONLY_MISSING_DEPS:-}" ]]; then
   if [[ ${#_miss_pkgs[@]} -gt 0 ]]; then
     case $SKIP_SYSUPDATE in
       true) sleep 0;;
-      *) 
-        if $ask; then
-          v pkg_sudo pacman -Syu
-        else
-          v pkg_sudo pacman -Syu --noconfirm
-        fi
-        ;;
+      *) _arch_system_upgrade ;;
     esac
 
     if ! command -v yay >/dev/null 2>&1 && ! command -v paru >/dev/null 2>&1; then
@@ -127,13 +143,7 @@ fi
 #####################################################################################
 case $SKIP_SYSUPDATE in
   true) sleep 0;;
-  *) 
-    if $ask; then
-      v pkg_sudo pacman -Syu
-    else
-      v pkg_sudo pacman -Syu --noconfirm
-    fi
-    ;;
+  *) _arch_system_upgrade ;;
 esac
 
 #####################################################################################

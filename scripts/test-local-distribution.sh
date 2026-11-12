@@ -41,6 +41,10 @@ check "unit has exactly one ExecCondition" \
     test "$(grep -c '^ExecCondition=' "$unit")" = 1
 check "ExecCondition lives in the [Service] section" \
     bash -c 'awk "\$0==\"[Service]\"{s=1} s && /^ExecCondition=/{found=1} END{exit !found}" "$1"' _ "$unit"
+check "Omarchy skips direct pacman -Syu" \
+    grep -q 'Omarchy owns system upgrades' "$ROOT/sdata/dist-arch/install-deps.sh"
+check "Omarchy is detected as its own Arch variant" \
+    grep -q 'OS_SPECIFIC_ID="omarchy"' "$ROOT/sdata/lib/dist-determine.sh"
 
 # ── compositor_units adds the Omarchy uwsm unit ──────────────────────────────
 mkdir -p "$TMP/bin" "$TMP/sessions" "$TMP/config/inir" "$TMP/run"
