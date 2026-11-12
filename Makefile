@@ -33,7 +33,7 @@ install-systemd:
 	@chmod 644 $(SYSTEMD_USER_DIR)/inir.service
 
 install-icon:
-	@install -Dm644 assets/icons/desktop-symbolic.svg $(ICON_DIR)/inir.svg
+	@install -Dm644 assets/icons/inir.svg $(ICON_DIR)/inir.svg
 	@gtk-update-icon-cache -q $(SHAREDIR)/icons/hicolor 2>/dev/null || true
 
 install-desktop:
