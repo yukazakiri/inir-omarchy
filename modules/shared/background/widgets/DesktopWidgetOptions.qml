@@ -205,8 +205,14 @@ QtObject {
     function _customRow(widget: string, key: string, option: var): var {
         const number = option.type === "int" || option.type === "real"
         const ranged = number && option.min !== undefined && option.max !== undefined
-        return root.row(widget, key, option.label ?? key, option.type === "bool" ? "switch" : ranged ? "range" : "text", option.default,
-            ranged ? { min: option.min, max: option.max, step: option.step ?? (option.type === "int" ? 1 : 0.1) } : {})
+        const picks = option.options !== undefined && option.options !== null && option.options.length > 0
+        const kind = option.type === "bool" ? "switch" : picks ? "choice" : ranged ? "range" : "text"
+        const extra = picks
+            ? { choices: root.choices(Array.from(option.options).map(entry => [entry.value, entry.label, entry.glyph])) }
+            : ranged
+                ? { min: option.min, max: option.max, step: option.step ?? (option.type === "int" ? 1 : 0.1) }
+                : { placeholder: option.placeholder ?? "", detail: option.description ?? "" }
+        return root.row(widget, key, option.label ?? key, kind, option.default, extra)
     }
     // A sheet's page of a widget's rows, minus the keys it draws itself.
     function sheetRows(widget: string, page: string, exclude: var): var {

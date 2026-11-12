@@ -47,6 +47,10 @@ check "Omarchy is detected as its own Arch variant" \
     grep -q 'OS_SPECIFIC_ID="omarchy"' "$ROOT/sdata/lib/dist-determine.sh"
 check "iNiR SDDM drop-in sorts after Omarchy's login drop-in" \
     grep -q '99-zz-inir-theme.conf' "$ROOT/scripts/sddm/install-pixel-sddm.sh"
+check "custom widget options render as choices" \
+    grep -q 'const picks = option.options' "$ROOT/modules/shared/background/widgets/DesktopWidgetOptions.qml"
+check "custom widget text rows show their detail" \
+    grep -q 'detail: root.label(words.spec.detail' "$ROOT/modules/shared/background/widgets/WidgetOptionList.qml"
 
 mkdir -p "$TMP/owed-guard"
 XDG_CONFIG_HOME="$TMP/owed-guard" bash -c 'source "$1/sdata/lib/functions.sh"; ensure_omarchy_owed_guard' _ "$ROOT"
