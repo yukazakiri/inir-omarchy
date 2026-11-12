@@ -365,6 +365,7 @@ repair_update_owned_state() {
                 ensure_user_inir_service_enabled >/dev/null 2>&1 || true
             fi
         fi
+        ensure_omarchy_owed_guard || tui_warn "Could not keep Omarchy's wallpaper engine off Niri"
     fi
 }
 

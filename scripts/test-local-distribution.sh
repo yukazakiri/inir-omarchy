@@ -48,6 +48,16 @@ check "Omarchy is detected as its own Arch variant" \
 check "iNiR SDDM drop-in sorts after Omarchy's login drop-in" \
     grep -q '99-zz-inir-theme.conf' "$ROOT/scripts/sddm/install-pixel-sddm.sh"
 
+mkdir -p "$TMP/owed-guard"
+XDG_CONFIG_HOME="$TMP/owed-guard" bash -c 'source "$1/sdata/lib/functions.sh"; ensure_omarchy_owed_guard' _ "$ROOT"
+check "Omarchy owed wallpaper guard is created" \
+    grep -q 'ConditionEnvironment=XDG_CURRENT_DESKTOP=Hyprland' \
+    "$TMP/owed-guard/systemd/user/owed.service.d/omarchy-niri.conf"
+check "installer calls the owed wallpaper guard" \
+    grep -q 'ensure_omarchy_owed_guard' "$ROOT/sdata/subcmd-install/3.files.sh"
+check "updater calls the owed wallpaper guard" \
+    grep -q 'ensure_omarchy_owed_guard' "$ROOT/setup"
+
 # ── compositor_units adds the Omarchy uwsm unit ──────────────────────────────
 mkdir -p "$TMP/bin" "$TMP/sessions" "$TMP/config/inir" "$TMP/run"
 touch "$TMP/sessions/omarchy-niri.desktop"
