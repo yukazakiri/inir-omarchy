@@ -37,6 +37,10 @@ check "unit After includes niri, umbriel and uwsm Niri" \
     grep -qx 'After=niri.service umbriel.service wayland-wm@niri.desktop.service' "$unit"
 check "unit gate accepts Hyprland for live shell swaps" \
     grep -q 'HYPRLAND_INSTANCE_SIGNATURE' "$unit"
+check "unit has exactly one ExecCondition" \
+    test "$(grep -c '^ExecCondition=' "$unit")" = 1
+check "ExecCondition lives in the [Service] section" \
+    bash -c 'awk "\$0==\"[Service]\"{s=1} s && /^ExecCondition=/{found=1} END{exit !found}" "$1"' _ "$unit"
 
 # ── compositor_units adds the Omarchy uwsm unit ──────────────────────────────
 mkdir -p "$TMP/bin" "$TMP/sessions" "$TMP/config/inir" "$TMP/run"

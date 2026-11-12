@@ -17,11 +17,6 @@ Description=iNiR shell
 # shell automatically.
 PartOf=niri.service umbriel.service wayland-wm@niri.desktop.service
 After=niri.service umbriel.service wayland-wm@niri.desktop.service
-# Which session may start the shell automatically is decided by the wants link,
-# not by this gate: the gate only refuses to run a shell with no compositor
-# session at all (a bare TTY, KDE, GNOME).  Hyprland is accepted so the shell
-# can be swapped in place inside a live Omarchy session (scripts/shell-switch.sh).
-ExecCondition=/bin/sh -c 'systemctl --user is-active --quiet niri.service || systemctl --user is-active --quiet umbriel.service || systemctl --user is-active --quiet wayland-wm@niri.desktop.service || [ -n "$NIRI_SOCKET" ] || [ -n "$UMBRIEL_SOCKET" ] || [ -n "$HYPRLAND_INSTANCE_SIGNATURE" ]'
 # Keep the StatusNotifier watcher ready before desktop autostart applications
 # register tray items.  Niri also orders itself before this target.
 Before=xdg-desktop-autostart.target
@@ -44,7 +39,10 @@ Environment=QT_SCALE_FACTOR_ROUNDING_POLICY=RoundPreferFloor
 Environment=QT_LOGGING_RULES=quickshell.dbus.properties=false;quickshell.dbus.objectmanager.warning=false;qt.qml.settings.warning=false;qt.core.qsettings.warning=false;kf.xmlgui=false;kf.coreaddons=false;kf.config.core=false;kf.iconthemes=false;qt.qpa.wayland.textinput.warning=false
 
 # Started by hand outside a session (a TTY, another desktop): skip, never a failure.
-ExecCondition=/bin/sh -c 'systemctl --user is-active --quiet niri.service || systemctl --user is-active --quiet umbriel.service'
+# The gate refuses a shell with no compositor session at all (a bare TTY, KDE,
+# GNOME), and accepts Hyprland so the shell can be swapped in place inside a live
+# Omarchy session (scripts/shell-switch.sh).
+ExecCondition=/bin/sh -c 'systemctl --user is-active --quiet niri.service || systemctl --user is-active --quiet umbriel.service || systemctl --user is-active --quiet wayland-wm@niri.desktop.service || [ -n "$NIRI_SOCKET" ] || [ -n "$UMBRIEL_SOCKET" ] || [ -n "$HYPRLAND_INSTANCE_SIGNATURE" ]'
 ExecStart=/usr/bin/inir run --session
 SuccessExitStatus=143
 
