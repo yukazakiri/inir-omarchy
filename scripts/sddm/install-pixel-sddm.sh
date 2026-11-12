@@ -10,10 +10,13 @@ THEME_SRC="${REPO_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}/dot
 THEME_DIR="/usr/share/sddm/themes/${THEME_NAME}"
 ACCEL_RUN="${REPO_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}/scripts/lib/accel-run"
 # Use a high-priority drop-in name so SDDM's alphabetical merge picks our values
-# LAST and we win against KDE's kde_settings.conf or any other foreign drop-in.
-# Old name (legacy, pre-2.26): /etc/sddm.conf.d/inir-theme.conf — cleaned up below.
-SDDM_CONF="/etc/sddm.conf.d/99-inir-theme.conf"
+# LAST and we win against KDE's kde_settings.conf, Omarchy's
+# 99-omarchy-login.conf, or any other foreign drop-in.
+# Old names (legacy): /etc/sddm.conf.d/inir-theme.conf and
+# /etc/sddm.conf.d/99-inir-theme.conf — cleaned up below.
+SDDM_CONF="/etc/sddm.conf.d/99-zz-inir-theme.conf"
 SDDM_CONF_LEGACY="/etc/sddm.conf.d/inir-theme.conf"
+SDDM_CONF_LEGACY_2="/etc/sddm.conf.d/99-inir-theme.conf"
 AUTO_APPLY_MODE="${INIR_SDDM_AUTO_APPLY:-ask}" # ask|yes|no
 # Whether this run may make SDDM the login screen. An update only refreshes the theme: someone who went
 # back to GDM or another display manager keeps it.
@@ -207,13 +210,16 @@ if [[ ! -f "${THEME_DIR}/assets/background.png" ]]; then
     fi
 fi
 
-# Migrate from the old SDDM_CONF filename (inir-theme.conf) to the new
-# alphabetical-last name (99-inir-theme.conf). Done idempotently: if the legacy
-# file exists and we own the new name's location, just remove the legacy one.
+# Migrate from the old SDDM_CONF filenames to the new alphabetical-last name
+# (99-zz-inir-theme.conf). Done idempotently: if a legacy file exists and we own
+# the new name's location, just remove the legacy one.
 migrate_legacy_sddm_conf() {
-    [[ -f "$SDDM_CONF_LEGACY" ]] || return 0
-    log_info "Removing legacy ${SDDM_CONF_LEGACY} (replaced by $(basename "$SDDM_CONF"))"
-    elevate rm -f "$SDDM_CONF_LEGACY"
+    local legacy
+    for legacy in "$SDDM_CONF_LEGACY" "$SDDM_CONF_LEGACY_2"; do
+        [[ -f "$legacy" ]] || continue
+        log_info "Removing legacy ${legacy} (replaced by $(basename "$SDDM_CONF"))"
+        elevate rm -f "$legacy"
+    done
 }
 
 # Configure only the theme. DisplayServer, compositor and input-method policy
@@ -278,8 +284,9 @@ CompositorCommand=${niri_bin} -c ${GREETER_KDL}"
 }
 apply_greeter_mode
 
-# Clean up legacy drop-in name (if user is migrating from pre-2.26 install).
-# Our new 99- prefixed file already wins by alphabetical merge order.
+# Clean up legacy drop-in names (if user is migrating from pre-2.26 or the
+# 99-inir-theme.conf era). Our 99-zz- prefixed file wins by alphabetical merge
+# order, including against Omarchy's 99-omarchy-login.conf.
 migrate_legacy_sddm_conf
 
 # Run initial color sync now that files are in place

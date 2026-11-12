@@ -38,7 +38,12 @@
   </sub>
 </p>
 
-## Families
+> [!NOTE]
+> **🍱 Omarchy flavor.** This is a fork of [snowarch/inir](https://github.com/snowarch/inir) for people who live in the **[Omarchy](https://omarchy.org/) ecosystem** but want **iNiR as their shell**. Everything upstream still works — on top you get seamless **Omarchy Hyprland ↔ Niri switching** with a single command, wired into the launcher, the session screen, and an Omarchy bar widget. Omarchy users start here: [🍱 Omarchy users](#-omarchy-users).
+
+---
+
+## What's new in 3.0
 
 <p align="center"><img src="docs/shots/readme-iris.webp" alt="iRiS" width="100%"><br><sub><b>iRiS</b> · One Island on any edge that becomes what you open, plus a dock</sub></p>
 
@@ -62,9 +67,10 @@
 ## Install
 
 ```bash
-git clone https://github.com/snowarch/inir.git
-cd inir
-./setup install
+git clone https://github.com/yukazakiri/inir-omarchy.git
+cd inir-omarchy
+./setup install       # interactive, asks before each step
+./setup install -y    # automatic, no questions asked
 ```
 
 Arch, Fedora, Debian, Ubuntu, Void and NixOS. The [install guide](https://inir.space/docs/install/) has what each one needs. It runs on Niri and on Umbriel: [Compositors](https://inir.space/docs/compositors/) shows how to add Umbriel.
@@ -91,6 +97,42 @@ iNiR is a base and the parts around it, each in its own repository. Nothing comp
 | [inir-cli](https://github.com/snowarch/inir-cli) | The `inir` command: IPC, doctor, update, `inir hub` | ![](https://img.shields.io/github/v/release/snowarch/inir-cli?label=&style=flat-square&color=111111) |
 | [inir-site](https://github.com/snowarch/inir-site) | [inir.space](https://inir.space): the site, the docs, the hub catalogue | |
 | [iNiR-Walls](https://github.com/snowarch/iNiR-Walls), [inir-mascot](https://github.com/snowarch/inir-mascot) | The wallpaper pack and Kira's art, both optional in setup | |
+
+## 🍱 Omarchy users
+
+**Stay on Omarchy. Keep everything. Just change the shell.** This fork is for people who love the Omarchy ecosystem — the curated Arch base, the apps, the theming pipeline, `omarchy` CLI, unattended updates — but want iNiR's shell (Island, pieces, Material You everything, three panel families) instead of the stock Hyprland bar when they run Niri.
+
+Why it works so well together:
+
+- **Two compositors, one system.** Omarchy Hyprland for the classic flow, Niri + iNiR when you want scrollable tiling with a richer shell. Both are uwsm-managed SDDM sessions; your apps, theme, and files are the same on either side.
+- **Switching with zero friction.** Omarchy's SDDM autologs in and its greeter has no session picker — so this fork switches the login target itself and logs straight back in. No password prompt, no picker, about two seconds:
+  - `Super+Space`, type `/switch`, Enter — flips to Omarchy Hyprland
+  - `Super+Shift+Q` session screen → **Omarchy** button
+  - On the Hyprland side, the companion [omarchy-niri-switch](https://github.com/yukazakiri/omarchy-niri-switch) bar widget flips you back to Niri the same way
+  - Scriptable too: `inir globalActions run switch-to-omarchy`, or `scripts/compositor-switch.sh switch niri`
+- **Nothing leaks across the boundary.** iNiR is wired to start only under the Niri session and stop with it — it never haunts your Hyprland bar, and the Omarchy bar never follows you to Niri.
+- **Omarchy-safe.** No Omarchy package files are touched. Everything lives in user config (`~/.config/`), one SDDM autologin setting, and two files under `/usr/local/` — so `omarchy update` keeps working exactly as before.
+- **Shared-HOME theming isolation.** Both shells use one `$HOME`, so iNiR's external app-theming pipeline stays off here: `appearance.wallpaperTheming.enableAppsAndShell`, `enableQtApps` and `enableTerminal` are all `false` in `~/.config/inir/config.json`, and the pipeline treats that as authoritative (script flag reads are null-safe; `IconThemeService` only applies system-wide when desktop theming is on). iNiR still themes itself; Omarchy's GTK/icon/Qt settings are never rewritten on shell boot or wallpaper change.
+
+Setup is the stock iNiR install plus the Omarchy wiring. On a machine that offers Omarchy's `omarchy-niri.desktop` session, setup wires `inir.service` to the uwsm session unit (`wayland-wm@niri.desktop.service`): the shipped unit names it in its lifecycle, and `inir service enable` (also run by update) creates the wants link. No manual systemd steps. The companion repo bundles the system-side parts into one installer:
+
+```bash
+git clone https://github.com/yukazakiri/omarchy-niri-switch.git
+cd omarchy-niri-switch
+./install.sh   # Niri session + SDDM setter + /switch command + launcher entries
+```
+
+### Fork Hub source
+
+This fork also has its own iNiR Hub source. Add it in **Settings → Hub → Sources**:
+
+```text
+https://raw.githubusercontent.com/yukazakiri/inir-omarchy-hub/main/dist/index.json
+```
+
+The first item is [iNiR Docker](https://github.com/yukazakiri/inir-omarchy-hub/tree/main/widgets/inir-docker): a Material desktop card and iRiS Island line for Docker containers, with lifecycle controls and logs.
+
+---
 
 [Architecture](docs/ARCHITECTURE_OVERVIEW.md) has the whole map. To add something, make it a plugin:
 [inir-hub's guide](https://github.com/snowarch/inir-hub/blob/main/CONTRIBUTING.md). To change the base:

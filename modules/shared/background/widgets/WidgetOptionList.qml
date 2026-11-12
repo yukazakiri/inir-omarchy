@@ -118,6 +118,7 @@ ColumnLayout {
             id: words
             property var spec: ({})
             title: root.label(words.spec.label)
+            detail: root.label(words.spec.detail ?? "")
             MaterialTextField {
                 Layout.fillWidth: true
                 text: String(root.valueOf(words.spec) ?? "")

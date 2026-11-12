@@ -66,17 +66,41 @@ compositor_set_choice() {
 # Whether iNiR may set itself up on Umbriel (config, colours, the shell at login).
 compositor_umbriel_wanted() { [[ "$(compositor_choice)" != niri ]]; }
 
+# Whether the Omarchy Niri session is installed. Its wayland-sessions entry starts Niri through uwsm, so Niri runs
+# inside wayland-wm@niri.desktop.service and niri.service never becomes active there.
+# INIR_WAYLAND_SESSIONS_DIRS lets tests point this at a temp dir.
+compositor_omarchy_niri_session_installed() {
+    local -a dirs=()
+    if [[ -n "${INIR_WAYLAND_SESSIONS_DIRS:-}" ]]; then
+        read -r -a dirs <<< "$INIR_WAYLAND_SESSIONS_DIRS"
+    else
+        dirs=(/usr/local/share/wayland-sessions /usr/share/wayland-sessions)
+    fi
+    local dir
+    for dir in ${dirs+"${dirs[@]}"}; do
+        [[ -f "${dir}/omarchy-niri.desktop" ]] && return 0
+    done
+    return 1
+}
+
 # The units inir.service is wired under, one per line: both compositors as soon as either is installed (one added
-# later starts the shell too), only Niri's when the person picked Niri alone. Nothing when neither is installed.
+# later starts the shell too), only Niri's when the person picked Niri alone. Omarchy's uwsm Niri session unit is
+# included when that session is installed, so the shell starts there although niri.service never activates.
+# Nothing when neither compositor is installed.
 compositor_units() {
-    local unit
+    local unit found=false
     for unit in niri.service umbriel.service; do
         systemctl --user cat "$unit" &>/dev/null || continue
         echo niri.service
         compositor_umbriel_wanted && echo umbriel.service
-        return 0
+        found=true
+        break
     done
-    return 1
+    if compositor_omarchy_niri_session_installed; then
+        echo wayland-wm@niri.desktop.service
+        found=true
+    fi
+    [[ "$found" == true ]]
 }
 
 # A session start under Umbriel: the first login with no config of their own gets iNiR's (the early port's one is

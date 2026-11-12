@@ -1,0 +1,55 @@
+#!/bin/bash
+# sddm-set-autologin-session: set the SDDM autologin session target.
+# Runs as root via pkexec (from the shell) or sudo (from a terminal).
+# Install once: sudo cp scripts/sddm-set-autologin-session /usr/local/bin/
+#               sudo chmod 755 /usr/local/bin/sddm-set-autologin-session
+# Only ever touches the Session= and Relogin= lines; User= and the rest stay.
+#
+# Relogin=true matters: without it SDDM shows the greeter after logout, and
+# picker-less greeter themes default back to Hyprland, defeating the switch.
+set -u
+
+target="${1:-}"
+case "$target" in
+  omarchy.desktop|omarchy-niri.desktop|hyprland.desktop|hyprland-uwsm.desktop|niri.desktop) ;;
+  *)
+    echo "sddm-set-autologin-session: refusing unknown session '$target'" >&2
+    exit 2
+    ;;
+esac
+
+conf="/etc/sddm.conf.d/autologin.conf"
+[ -f "$conf" ] || { echo "sddm-set-autologin-session: missing $conf" >&2; exit 1; }
+
+found=0
+for d in /usr/local/share/wayland-sessions /usr/share/wayland-sessions; do
+  if [ -f "$d/$target" ]; then found=1; break; fi
+done
+if [ "$found" != 1 ]; then
+  echo "sddm-set-autologin-session: session not installed: $target" >&2
+  exit 1
+fi
+
+tmp="$(mktemp)" || exit 1
+sed -e "s|^Session=.*|Session=$target|" "$conf" > "$tmp" || exit 1
+if ! grep -qx "Session=$target" "$tmp"; then
+  echo "sddm-set-autologin-session: update failed" >&2
+  rm -f "$tmp"
+  exit 1
+fi
+if grep -q '^Relogin=' "$tmp"; then
+  sed -i 's/^Relogin=.*/Relogin=true/' "$tmp" || exit 1
+elif grep -q '^\[Autologin\]' "$tmp"; then
+  awk '{ print } /^\[Autologin\]$/ && !done { print "Relogin=true"; done=1 }' "$tmp" > "$tmp.new" || exit 1
+  mv "$tmp.new" "$tmp" || exit 1
+else
+  printf '\n[Autologin]\nRelogin=true\n' >> "$tmp" || exit 1
+fi
+if ! grep -qx 'Relogin=true' "$tmp"; then
+  echo "sddm-set-autologin-session: relogin update failed" >&2
+  rm -f "$tmp"
+  exit 1
+fi
+cat "$tmp" > "$conf" || exit 1
+rm -f "$tmp"
+echo "Autologin session -> $target (Relogin=true)"
