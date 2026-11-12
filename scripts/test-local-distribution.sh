@@ -79,8 +79,9 @@ check "compositor_units emits wayland-wm@niri.desktop.service" \
 check "niri-only choice omits umbriel.service" bash -c '! grep -qx umbriel.service <<< "$1"' _ "$units"
 
 printf 'inir\n' > "$TMP/config/inir/compositor"
+mkdir -p "$TMP/no-sessions"
 units="$(HOME="$TMP" XDG_CONFIG_HOME="$TMP/config" XDG_RUNTIME_DIR="$TMP/run" \
-    INIR_WAYLAND_SESSIONS_DIRS="" PATH="$TMP/bin:$PATH" \
+    INIR_WAYLAND_SESSIONS_DIRS="$TMP/no-sessions" PATH="$TMP/bin:$PATH" \
     bash -c 'source "$1/scripts/lib/compositor.sh"; compositor_units' _ "$ROOT")"
 check "no Omarchy session: uwsm unit is not wired" \
     bash -c '! grep -qx "wayland-wm@niri.desktop.service" <<< "$1"' _ "$units"
