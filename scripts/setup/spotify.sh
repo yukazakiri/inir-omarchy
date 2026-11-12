@@ -32,12 +32,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 CONFIG_PATH="$(inir_config_file)"
 
-_find_prefs() {
-    find "$HOME" -path '*/spotify/prefs' -print -quit 2>/dev/null
-}
-
-_have_spotify_and_spicetify() {
-    have_cmd spotify && have_cmd spicetify
+# Print an error and exit, holding the terminal open.
+_die() {
+    setup_fail "$1"
+    setup_finish_pause
+    exit 1
 }
 
 _run_may_fail() {
@@ -286,25 +285,26 @@ _enable_spicetify_theming() {
     ) 200>"$lockfile"
 }
 
-_enable_spicetify_theming() {
-    if ! have_cmd jq; then
-        echo "  · jq not available; cannot enable Spicetify theming in config." >&2
+# ------------------------------------------------------------------------------
+# Phase 1 — Check and optionally remove incompatible installs
+# ------------------------------------------------------------------------------
+# Spicetify can only patch the official AUR package at /opt/spotify.
+# Conflicting package formats are detected first. Every removal requires an
+# explicit confirmation; declining any removal leaves the existing installs
+# untouched and stops setup before package installation begins.
+# ------------------------------------------------------------------------------
+_confirm_removal() {
+    local description="$1"
+    local answer
+
+    printf '\n  · Detected %s.\n' "$description"
+    printf '    Remove it before continuing with the AUR setup? [y/N] '
+    if ! read -r answer; then
+        printf '\n    No confirmation received; leaving it installed.\n' >&2
         return 1
     fi
-    echo "  · Enabling Spicetify theming in iNiR config…"
-    if [[ ! -f "$CONFIG_PATH" ]]; then
-        echo '{}' > "$CONFIG_PATH"
-    fi
-    local lockfile="$CONFIG_PATH.lock"
-    (
-        flock -w 5 200 || { echo "  · Config lock timeout." >&2; return 1; }
-        jq '.appearance.wallpaperTheming.enableSpicetify = true' \
-            "$CONFIG_PATH" > "$CONFIG_PATH.tmp" \
-            && mv "$CONFIG_PATH.tmp" "$CONFIG_PATH"
-    ) 200>"$lockfile"
+    [[ "$answer" =~ ^[Yy]([Ee][Ss])?$ ]]
 }
-
-setup_init "spotify" "Setup Spotify + Spicetify"
 
 _arch_package_installed() {
     have_cmd pacman && pacman -Q "$1" >/dev/null 2>&1
@@ -572,23 +572,26 @@ _install_marketplace() {
     fi
 }
 
-    setup_progress 6 $TOTAL "Enabling and applying iNiR Spicetify theme"
+_apply_theme() {
     if ! _enable_spicetify_theming; then
-        echo "warning: Could not enable Spicetify theming in config; continuing." >&2
+        echo "  · warning: Could not enable Spicetify theming in config; continuing." >&2
     fi
-    theme_script="$SCRIPT_DIR/../colors/apply-spicetify-theme.sh"
+
+    local theme_script="$SCRIPT_DIR/../colors/apply-spicetify-theme.sh"
     if [[ -x "$theme_script" ]]; then
-        theme_name="$(jq -r '.appearance.wallpaperTheming.spicetifyTheme // "Inir"' "$CONFIG_PATH" 2>/dev/null)"
+        local theme_name
+        theme_name="$(jq -r '.appearance.wallpaperTheming.spicetifyTheme // "Inir"' "$CONFIG_PATH" 2>/dev/null || printf 'Inir')"
         if [[ "$theme_name" != "Inir" && "$theme_name" != "InirTUI" ]]; then
             theme_name="Inir"
         fi
+        echo "  · Applying iNiR theme ($theme_name)…"
         if "$theme_script" --theme "$theme_name"; then
-            echo "iNiR theme applied."
+            echo "  · iNiR theme applied."
         else
-            echo "warning: theme script returned non-zero; rerun it manually if Spotify looks unstyled." >&2
+            echo "  · warning: theme script returned non-zero; rerun it manually if Spotify looks unstyled." >&2
         fi
     else
-        echo "warning: $theme_script not found or not executable; skipping theme." >&2
+        echo "  · warning: $theme_script not found or not executable; skipping theme." >&2
     fi
 }
 
