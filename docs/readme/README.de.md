@@ -1,5 +1,12 @@
 <p align="center">
-  <img src="../images/releases/3.0.0/00-hero.webp" alt="iNiR 3.0: der iRiS-Desktop über einem verschneiten Wald bei Nacht" width="100%">
+  <img src="../shots/readme-hero.webp" alt="Der iRiS-Desktop im Einsatz: die Island spielt Musik über den Dashboard-Widgets" width="100%">
+</p>
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: light)" srcset="../images/readme/mark-light.svg">
+    <img src="../images/readme/mark-dark.svg" alt="" width="56">
+  </picture>
 </p>
 
 <h1 align="center">iNiR</h1>
@@ -30,33 +37,26 @@
   </sub>
 </p>
 
-## Neu in 3.0
+## Familien
 
-Eine kleine Basis, in der jede Familie ein Plugin ist, eine eigene Laufzeit, ein Zuhause auf [inir.space](https://inir.space) und neue Settings für iRiS. Ein `inir update` bringt alles und behält deine Konfiguration. [Den ganzen Changelog lesen](../../CHANGELOG.md).
+<p align="center"><img src="../shots/readme-iris.webp" alt="iRiS" width="100%"><br><sub><b>iRiS</b> · Eine Island an jedem Rand, die zu dem wird, was du öffnest, plus ein Dock</sub></p>
 
 <table>
 <tr>
-<td width="50%" valign="top"><img src="../images/releases/3.0.0/01-prism.webp" alt="Prism" width="100%"><br><sub><b>Prism</b><br>Die Settings von iRiS neu gebaut: jede Option an einem Ort, mit einer Live-Vorschau dessen, was sie ändert.</sub></td>
-<td width="50%" valign="top"><img src="../images/releases/3.0.0/02-island.webp" alt="Die Island" width="100%"><br><sub><b>Die Island</b><br>Musik, Timer und Live-Aktivitäten in einem Objekt oben, in sechzehn Designs.</sub></td>
-</tr>
-<tr>
-<td width="50%" valign="top"><img src="../images/releases/3.0.0/04-airisu.webp" alt="AIRISU" width="100%"><br><sub><b>AIRISU</b><br>Das erste Design: eigene Panels, eigenes Layout und eigene Stimme auf der Engine von iRiS.</sub></td>
-<td width="50%" valign="top"><img src="../images/releases/3.0.0/03-edit-mode.webp" alt="Bearbeitungsmodus" width="100%"><br><sub><b>Bearbeitungsmodus</b><br>Desktop-Widgets ziehen, skalieren und speichern, dann ganze Desktops mit einem Klick wechseln.</sub></td>
-</tr>
-<tr>
-<td width="50%" valign="top"><img src="../images/releases/3.0.0/06-material.webp" alt="Material" width="100%"><br><sub><b>Material</b><br>Dieselben Widgets in Materials eigenen Gesichtern, mit neuen Settings und neuer Schrift.</sub></td>
-<td width="50%" valign="top"><img src="../images/releases/3.0.0/05-hub.webp" alt="iNiR Hub" width="100%"><br><sub><b>iNiR Hub</b><br>Familien, Designs, Themes und Widgets als Plugins, auf inir.space/hub und in der Shell.</sub></td>
+<td width="50%" valign="top"><img src="../shots/readme-material.webp" alt="Material" width="100%"><br><sub><b>Material</b> · Eine Leiste an jedem Rand, Seitenleisten, Übersicht, globale Stile</sub></td>
+<td width="50%" valign="top"><img src="../shots/readme-waffle.webp" alt="Waffle" width="100%"><br><sub><b>Waffle</b> · Eine Windows-11-Taskleiste und ein Aktionszentrum</sub></td>
 </tr>
 </table>
 
-## Familien
-
-| Material | Waffle | iRiS |
-|:---:|:---:|:---:|
-| <img src="../shots/families-material.webp" alt="Material" width="290"> | <img src="../shots/families-waffle.webp" alt="Waffle" width="290"> | <img src="../shots/families-iris.webp" alt="iRiS" width="290"> |
-| Eine Leiste an jedem Rand, Seitenleisten, Übersicht, neun globale Stile | Eine Windows-11-Taskleiste und ein Aktionszentrum | Eine Island an jedem Rand, die zu dem wird, was du öffnest, plus ein Dock |
-
 `Super+Shift+W` wechselt zwischen ihnen. Weitere Looks, Widgets, Themes und Web-Apps gibt es im [Hub](https://inir.space/hub).
+
+<table>
+<tr>
+<td width="33%" valign="top"><img src="../shots/readme-settings.webp" alt="Einstellungen" width="100%"><br><sub><b>Einstellungen</b> · Jede Option so gezeichnet, wie das, was sie ändert</sub></td>
+<td width="33%" valign="top"><img src="../shots/readme-edit.webp" alt="Desktop" width="100%"><br><sub><b>Desktop</b> · Widgets, die du platzierst, skalierst und stapelst</sub></td>
+<td width="33%" valign="top"><img src="../shots/readme-lock.webp" alt="Sperre" width="100%"><br><sub><b>Sperre</b> · Ruhig, mit deiner Musik und der Uhrzeit</sub></td>
+</tr>
+</table>
 
 ## Installation
 

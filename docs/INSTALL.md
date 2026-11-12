@@ -12,11 +12,13 @@ cd inir
 ./setup install
 ```
 
-Use `./setup install -y` to skip the questions.
+Before anything changes it asks, in one short list you tick, what goes in: where iNiR runs (Niri, or Umbriel too), the login screen theme, icons and wallpapers. `./setup install -y` takes the defaults without asking.
 
 When it finishes, restart the computer. Logging out is not enough, because Niri's environment and your new groups only load at login. Then pick Niri, or Umbriel if you set iNiR up there too, at the login screen.
 
 The first start opens a short welcome: pick a family, then a few choices about how it looks and where things sit, each one landing on the desktop behind it as you click. **Skip setup** keeps the recommended pick for every step you didn't reach, so skipping never leaves you halfway. Everything there can be changed later in Settings.
+
+Another shell already installed, such as Noctalia, DankMaterialShell or Caelestia, can stay. iNiR runs on its own runtime and config, so the installer only offers to remove it, and `-y` keeps it. Keep the two in different sessions: if that shell lives on Umbriel, answer **Niri only** when the installer asks where iNiR runs (it is the default then), and Umbriel keeps its shell as it is.
 
 If the login screen is black on a laptop with NVIDIA and integrated graphics, the default X11 greeter may be starting on the GPU with no screens. Open `./setup`, choose Extras, and set up the Wayland login screen with Niri from there.
 
@@ -43,9 +45,9 @@ If your distro has no automated path, install the packages yourself, then skip s
 
 After the restart you should see the bar at the top. Then try these:
 
-- Super+Tab opens Niri's overview.
+- Super+Tab opens the compositor's overview.
 - Super+Space opens iNiR's overview and app launcher.
-- Alt+Tab switches windows with Niri's own switcher.
+- Alt+Tab switches windows (Niri's own switcher; on Umbriel, iNiR's).
 - Super+V opens clipboard history.
 - Super+Shift+S opens the region tools.
 

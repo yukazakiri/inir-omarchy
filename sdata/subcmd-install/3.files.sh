@@ -93,18 +93,30 @@ esac
 # Which compositors (asked first: the service wiring below follows the pick)
 #####################################################################################
 # With Umbriel already installed and no pick yet, ask once; Niri alone leaves Umbriel as it is (scripts/lib/compositor.sh).
+# Another shell kept (sdata/lib/conflicts.sh) or an Umbriel setup of their own most likely lives on Umbriel: then Niri
+# alone is the default, and what -y picks when a shell was kept, so the two never start in one session.
 source ./scripts/lib/compositor.sh
 _inir_umbriel_state="$(compositor_umbriel_config_state "${XDG_CONFIG_HOME}/umbriel")"
-if [[ -z "${INSTALL_COMPOSITOR:-}" && -z "$(compositor_choice)" && "$_inir_umbriel_state" != foreign \
-    && "${ask:-true}" != false && -t 0 ]] && command -v umbriel >/dev/null 2>&1; then
-  if tui_confirm "Umbriel is installed too. Set iNiR up on it as well (its keys, your Niri shortcuts, the shell at login)?" "yes"; then
-    INSTALL_COMPOSITOR=both
-  else
+if [[ -z "${INSTALL_COMPOSITOR:-}" && -z "$(compositor_choice)" ]] && command -v umbriel >/dev/null 2>&1; then
+  _inir_umbriel_default=yes
+  [[ -n "${INIR_KEPT_SHELLS:-}" || "$_inir_umbriel_state" == foreign ]] && _inir_umbriel_default=no
+  if [[ "${ask:-true}" != false && -t 0 ]]; then
+    if [[ "$_inir_umbriel_state" == foreign ]]; then
+      _inir_umbriel_q="Umbriel is installed with a setup of your own. Start iNiR there too (your Umbriel config stays as it is)?"
+    else
+      _inir_umbriel_q="Umbriel is installed too. Set iNiR up on it as well (its keys, your Niri shortcuts, the shell at login)?"
+    fi
+    if tui_confirm "$_inir_umbriel_q" "$_inir_umbriel_default"; then
+      INSTALL_COMPOSITOR=both
+    else
+      INSTALL_COMPOSITOR=niri
+    fi
+  elif [[ -n "${INIR_KEPT_SHELLS:-}" ]]; then
     INSTALL_COMPOSITOR=niri
   fi
 fi
 [[ -n "${INSTALL_COMPOSITOR:-}" ]] && compositor_set_choice "$INSTALL_COMPOSITOR"
-unset _inir_umbriel_state
+unset _inir_umbriel_state _inir_umbriel_default _inir_umbriel_q
 
 #####################################################################################
 # Backup existing configs
@@ -208,7 +220,8 @@ case "${SKIP_QUICKSHELL}" in
     find "$II_TARGET/scripts" \( -name "*.sh" -o -name "*.fish" -o -name "*.py" \) -exec chmod +x {} \; 2>/dev/null || true
     [[ -f "${II_TARGET}/setup" ]] && chmod +x "${II_TARGET}/setup"
 
-    if [[ -f "${REPO_ROOT}/scripts/inir" ]]; then
+    # a package puts its own launcher, service and desktop entries in place
+    if [[ -f "${REPO_ROOT}/scripts/inir" ]] && ! is_packaged_setup; then
       if sync_launcher_from_repo >/dev/null; then
         log_success "Launcher installed"
         log_success "Launcher path configured for login and interactive shells"
@@ -230,7 +243,7 @@ case "${SKIP_QUICKSHELL}" in
     fi
 
     # Determine supervisor path once; the shared reconciler owns the service file.
-    if [[ "$(inir_supervisor)" == systemd ]]; then
+    if [[ "$(inir_supervisor)" == systemd ]] && ! is_packaged_setup; then
       _use_systemd=true
     fi
 
@@ -364,10 +377,7 @@ case "${SKIP_NIRI}" in
       # colors from kdeglobals. Without it, Qt apps can't use KDE color schemes.
       # We check for plasma-integration (not plasma-desktop) because it can be
       # installed standalone for KDE theming without the full Plasma desktop.
-      if xbps-query -p pkgver plasma-integration >/dev/null 2>&1 || \
-         pacman -Q plasma-integration &>/dev/null 2>&1 || \
-         dpkg -l plasma-integration 2>/dev/null | grep -q '^ii' || \
-         rpm -q plasma-integration &>/dev/null 2>&1; then
+      if kde_platform_theme_present; then
         # Reconcile previous fallback installs back to KDE when the provider exists.
         sed -i 's/QT_QPA_PLATFORMTHEME "qt6ct"/QT_QPA_PLATFORMTHEME "kde"/' "$NIRI_ENV_TARGET"
         log_success "Qt theme: kde (plasma-integration detected)"
@@ -413,7 +423,7 @@ local _umbriel_state
 _umbriel_state="$(compositor_umbriel_config_state "${XDG_CONFIG_HOME}/umbriel")"
 if compositor_umbriel_wanted && { [[ "${INSTALL_COMPOSITOR:-niri}" != niri || "$_umbriel_state" == inir || "$_umbriel_state" == old ]] \
     || { [[ "$_umbriel_state" == none ]] && command -v umbriel >/dev/null 2>&1; }; }; then
-  if [[ "${INSTALL_COMPOSITOR:-niri}" != niri ]] && ! compositor_install_umbriel_package; then
+  if [[ "${INSTALL_COMPOSITOR:-niri}" != niri ]] && ! is_packaged_setup && ! compositor_install_umbriel_package; then
     log_warning "Umbriel is not installed; install it, then run: inir compositor add umbriel"
   fi
   if compositor_install_umbriel_config "defaults/umbriel" "${XDG_CONFIG_HOME}/umbriel"; then
@@ -449,7 +459,8 @@ fi
 # ii-pixel-sddm theme (login screen matching ii lockscreen aesthetic)
 # This MUST run AFTER theming templates are deployed above, because the distributed
 # config includes the SDDM sync post_hook template.
-if command -v sddm &>/dev/null; then
+# a package's login screen is its module's (Nix: services.displayManager.sddm.theme)
+if command -v sddm &>/dev/null && ! is_packaged_setup; then
   if [[ "${INSTALL_FIRSTRUN}" == true && "${INIR_INSTALL_SDDM_THEME:-}" == no ]]; then
     log_info "Skipping ii-pixel-sddm setup"
   elif [[ "${INSTALL_FIRSTRUN}" == true ]]; then
@@ -640,10 +651,10 @@ if [[ -d "dots/.config/Kvantum" ]]; then
 fi
 
 # Copy Colloid theme to user Kvantum folder if installed
-if [[ -d "/usr/share/Kvantum/Colloid" ]]; then
+if _colloid="$(xdg_data_path Kvantum/Colloid)"; then
   tui_info "Setting up Kvantum Colloid theme..."
   mkdir -p "${XDG_CONFIG_HOME}/Kvantum/Colloid"
-  cp -r /usr/share/Kvantum/Colloid/* "${XDG_CONFIG_HOME}/Kvantum/Colloid/"
+  cp -r --no-preserve=mode "$_colloid"/* "${XDG_CONFIG_HOME}/Kvantum/Colloid/"
   log_success "Kvantum Colloid theme configured"
 fi
 
@@ -794,7 +805,7 @@ set_mime_default_if_missing() {
     local desktop_file="$2"
 
     # Check if the desktop file exists
-    if [[ ! -f "/usr/share/applications/${desktop_file}" ]] && [[ ! -f "${XDG_DATA_HOME}/applications/${desktop_file}" ]]; then
+    if ! xdg_data_path "applications/${desktop_file}" >/dev/null; then
         return 1  # Desktop file not available
     fi
 
@@ -835,7 +846,7 @@ set_mime_default_if_missing() {
 # Detect available text editor (in order of preference)
 TEXT_EDITOR=""
 for editor in org.gnome.TextEditor.desktop org.gnome.gedit.desktop org.kde.kate.desktop code.desktop vim.desktop; do
-    if [[ -f "/usr/share/applications/${editor}" ]] || [[ -f "${XDG_DATA_HOME:-$HOME/.local/share}/applications/${editor}" ]]; then
+    if xdg_data_path "applications/${editor}" >/dev/null; then
         TEXT_EDITOR="$editor"
         break
     fi
@@ -853,7 +864,7 @@ fi
 # Detect and set file manager (prefer Nautilus for GTK consistency with Niri)
 FILE_MANAGER=""
 for fm in org.gnome.Nautilus.desktop thunar.desktop pcmanfm.desktop org.kde.dolphin.desktop; do
-    if [[ -f "/usr/share/applications/${fm}" ]] || [[ -f "${XDG_DATA_HOME:-$HOME/.local/share}/applications/${fm}" ]]; then
+    if xdg_data_path "applications/${fm}" >/dev/null; then
         FILE_MANAGER="$fm"
         break
     fi
@@ -866,7 +877,7 @@ fi
 # Detect and set image viewer
 IMAGE_VIEWER=""
 for viewer in org.gnome.Loupe.desktop org.gnome.eog.desktop org.kde.gwenview.desktop feh.desktop; do
-    if [[ -f "/usr/share/applications/${viewer}" ]] || [[ -f "${XDG_DATA_HOME:-$HOME/.local/share}/applications/${viewer}" ]]; then
+    if xdg_data_path "applications/${viewer}" >/dev/null; then
         IMAGE_VIEWER="$viewer"
         break
     fi
@@ -882,7 +893,7 @@ fi
 # Detect and set PDF viewer
 PDF_VIEWER=""
 for viewer in org.gnome.Evince.desktop org.kde.okular.desktop zathura.desktop; do
-    if [[ -f "/usr/share/applications/${viewer}" ]] || [[ -f "${XDG_DATA_HOME:-$HOME/.local/share}/applications/${viewer}" ]]; then
+    if xdg_data_path "applications/${viewer}" >/dev/null; then
         PDF_VIEWER="$viewer"
         break
     fi
@@ -895,7 +906,7 @@ fi
 # Detect and set web browser
 WEB_BROWSER=""
 for browser in firefox.desktop chromium.desktop google-chrome.desktop brave-browser.desktop; do
-    if [[ -f "/usr/share/applications/${browser}" ]] || [[ -f "${XDG_DATA_HOME:-$HOME/.local/share}/applications/${browser}" ]]; then
+    if xdg_data_path "applications/${browser}" >/dev/null; then
         WEB_BROWSER="$browser"
         break
     fi
@@ -1081,15 +1092,8 @@ fi
 # Create version.json for ShellUpdates service
 #####################################################################################
 if [[ -n "${II_TARGET}" && -d "${II_TARGET}" ]]; then
-  REPO_VERSION=""
-  REPO_COMMIT=""
-  if [[ -f "${REPO_ROOT}/VERSION" ]]; then
-    REPO_VERSION=$(cat "${REPO_ROOT}/VERSION" | tr -d '[:space:]')
-  fi
-  if command -v git &>/dev/null && [[ -e "${REPO_ROOT}/.git" ]]; then
-    REPO_COMMIT=$(git -C "${REPO_ROOT}" rev-parse --short HEAD 2>/dev/null || echo "")
-  fi
-  write_version_info_json "${II_TARGET}/version.json" "${REPO_VERSION:-0.0.0}" "${REPO_COMMIT:-unknown}" "setup-install"
+  # the commit from git, or from a package's payload (Nix), as the update reads it
+  write_version_info_json "${II_TARGET}/version.json" "$(get_repo_version)" "$(get_repo_commit)" "setup-install"
   log_success "Version tracking configured"
 fi
 

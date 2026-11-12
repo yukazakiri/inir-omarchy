@@ -33,9 +33,11 @@ Singleton {
     property string translationKeepSuffix: "/*keep*/"
     property string translationsDir: Quickshell.shellPath("translations")
     property string generatedTranslationsDir: Directories.shellConfig + "/translations"
-    // A plugin keeps the strings only it shows in its own translations/ folder: they arrive and leave with it.
-    // Joined so a re-read manifest doesn't reload the language.
-    readonly property string pluginIds: Object.keys(Plugins.manifests).sort().join(" ")
+    // A plugin, and a hub widget, keeps the strings only it shows in its own translations/ folder: they arrive and
+    // leave with it. Joined so a re-read manifest doesn't reload the language.
+    readonly property var pluginTranslationDirs: Object.keys(Plugins.manifests).sort().map(id => Plugins.path(id, "translations"))
+        .concat((CustomWidgets.widgets ?? []).map(w => `${w.dirPath}/translations`).sort())
+    readonly property string pluginTranslationKey: root.pluginTranslationDirs.join("\n")
 
     property string languageCode: {
         var configLang = Config.options?.language?.ui ?? "auto";
@@ -88,7 +90,7 @@ Singleton {
         root.reloadLanguage();
     }
 
-    onPluginIdsChanged: {
+    onPluginTranslationKeyChanged: {
         root.reloadLanguage();
     }
 
@@ -188,14 +190,14 @@ Singleton {
             pluginTranslationReader.locale = locale;
             pluginTranslationReader.generation = generation;
             pluginTranslationReader.merged = {};
-            pluginTranslationReader.queue = locale === "en_US" ? [] : root.pluginIds.split(" ").filter(id => id.length > 0);
+            pluginTranslationReader.queue = locale === "en_US" ? [] : root.pluginTranslationDirs.slice();
             pluginTranslationReader.next();
         }
 
         function next() {
             pluginTranslationReader.path = "";
-            const id = pluginTranslationReader.queue.shift();
-            if (id === undefined) {
+            const dir = pluginTranslationReader.queue.shift();
+            if (dir === undefined) {
                 if (pluginTranslationReader.generation !== root._loadGeneration || pluginTranslationReader.locale !== root._activeLoadLocale)
                     return;
                 root._pendingPluginTranslations = pluginTranslationReader.merged;
@@ -203,7 +205,7 @@ Singleton {
                 root.finishLoad(pluginTranslationReader.locale);
                 return;
             }
-            pluginTranslationReader.path = Plugins.path(id, `translations/${pluginTranslationReader.locale}.json`);
+            pluginTranslationReader.path = `${dir}/${pluginTranslationReader.locale}.json`;
             pluginTranslationReader.reload();
         }
 
@@ -266,7 +268,7 @@ Singleton {
         required property string translationsDir
         signal languagesScanned(var languages)
 
-        command: ["/usr/bin/find", translationScanner.translationsDir, "-maxdepth", "1", "-type", "f", "-name", "*.json", "-exec", "/usr/bin/basename", "{}", ".json", ";"]
+        command: ["find", translationScanner.translationsDir, "-maxdepth", "1", "-type", "f", "-name", "*.json", "-exec", "basename", "{}", ".json", ";"]
         running: false
 
         stdout: StdioCollector {

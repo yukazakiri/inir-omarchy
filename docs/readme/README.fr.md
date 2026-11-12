@@ -1,5 +1,12 @@
 <p align="center">
-  <img src="../images/releases/3.0.0/00-hero.webp" alt="iNiR 3.0 : le bureau iRiS sur une forêt enneigée la nuit" width="100%">
+  <img src="../shots/readme-hero.webp" alt="Le bureau iRiS au travail : l'Island joue de la musique au-dessus des widgets" width="100%">
+</p>
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: light)" srcset="../images/readme/mark-light.svg">
+    <img src="../images/readme/mark-dark.svg" alt="" width="56">
+  </picture>
 </p>
 
 <h1 align="center">iNiR</h1>
@@ -30,33 +37,26 @@
   </sub>
 </p>
 
-## Nouveautés de la 3.0
+## Familles
 
-Une base réduite où chaque famille est un plugin, un runtime à elle, un foyer sur [inir.space](https://inir.space) et de nouveaux Settings pour iRiS. Un seul `inir update` apporte tout cela et conserve votre configuration. [Lire le changelog complet](../../CHANGELOG.md).
+<p align="center"><img src="../shots/readme-iris.webp" alt="iRiS" width="100%"><br><sub><b>iRiS</b> · Une Island sur n'importe quel bord qui devient ce que vous ouvrez, plus un dock</sub></p>
 
 <table>
 <tr>
-<td width="50%" valign="top"><img src="../images/releases/3.0.0/01-prism.webp" alt="Prism" width="100%"><br><sub><b>Prism</b><br>Les Settings d'iRiS refaits : chaque option au même endroit, avec un aperçu en direct de ce qu'elle change.</sub></td>
-<td width="50%" valign="top"><img src="../images/releases/3.0.0/02-island.webp" alt="L'Island" width="100%"><br><sub><b>L'Island</b><br>Musique, minuteurs et activités en direct dans un seul objet en haut, en seize designs.</sub></td>
-</tr>
-<tr>
-<td width="50%" valign="top"><img src="../images/releases/3.0.0/04-airisu.webp" alt="AIRISU" width="100%"><br><sub><b>AIRISU</b><br>Le premier Design : ses propres panneaux, sa disposition et sa voix sur le moteur d'iRiS.</sub></td>
-<td width="50%" valign="top"><img src="../images/releases/3.0.0/03-edit-mode.webp" alt="Mode édition" width="100%"><br><sub><b>Mode édition</b><br>Déplacez, redimensionnez et enregistrez les widgets du bureau, puis changez de bureau entier en un clic.</sub></td>
-</tr>
-<tr>
-<td width="50%" valign="top"><img src="../images/releases/3.0.0/06-material.webp" alt="Material" width="100%"><br><sub><b>Material</b><br>Les mêmes widgets avec les visages propres à Material, avec ses Settings et sa typographie refaits.</sub></td>
-<td width="50%" valign="top"><img src="../images/releases/3.0.0/05-hub.webp" alt="iNiR Hub" width="100%"><br><sub><b>iNiR Hub</b><br>Familles, Designs, thèmes et widgets en plugins, sur inir.space/hub et dans le shell.</sub></td>
+<td width="50%" valign="top"><img src="../shots/readme-material.webp" alt="Material" width="100%"><br><sub><b>Material</b> · Une barre sur n'importe quel bord, des panneaux latéraux, l'aperçu, des styles globaux</sub></td>
+<td width="50%" valign="top"><img src="../shots/readme-waffle.webp" alt="Waffle" width="100%"><br><sub><b>Waffle</b> · Une barre des tâches Windows 11 et un centre d'action</sub></td>
 </tr>
 </table>
 
-## Familles
-
-| Material | Waffle | iRiS |
-|:---:|:---:|:---:|
-| <img src="../shots/families-material.webp" alt="Material" width="290"> | <img src="../shots/families-waffle.webp" alt="Waffle" width="290"> | <img src="../shots/families-iris.webp" alt="iRiS" width="290"> |
-| Une barre sur n'importe quel bord, des panneaux latéraux, l'aperçu, neuf styles globaux | Une barre des tâches Windows 11 et un centre d'action | Une Island sur n'importe quel bord qui devient ce que vous ouvrez, plus un dock |
-
 `Super+Shift+W` permet de passer de l'une à l'autre. D'autres styles, widgets, thèmes et applications web sont sur le [hub](https://inir.space/hub).
+
+<table>
+<tr>
+<td width="33%" valign="top"><img src="../shots/readme-settings.webp" alt="Réglages" width="100%"><br><sub><b>Réglages</b> · Chaque option dessinée comme ce qu'elle change</sub></td>
+<td width="33%" valign="top"><img src="../shots/readme-edit.webp" alt="Bureau" width="100%"><br><sub><b>Bureau</b> · Des widgets que vous placez, redimensionnez et empilez</sub></td>
+<td width="33%" valign="top"><img src="../shots/readme-lock.webp" alt="Verrouillage" width="100%"><br><sub><b>Verrouillage</b> · Calme, avec votre musique et l'heure</sub></td>
+</tr>
+</table>
 
 ## Installation
 

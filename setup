@@ -64,12 +64,12 @@ cleanup() {
     type _tui_kill_spinner &>/dev/null && _tui_kill_spinner 2>/dev/null || true
     echo ""
     echo -e "\033[33mCancelled.\033[0m"
-    rm -rf /tmp/buildyay /tmp/buildparu 2>/dev/null
+    rm -rf "${TMPDIR:-/tmp}/buildyay" "${TMPDIR:-/tmp}/buildparu" 2>/dev/null
     exit 130
 }
 
 trap cleanup INT
-trap 'type _tui_kill_spinner &>/dev/null && _tui_kill_spinner 2>/dev/null || true; rm -rf /tmp/buildyay /tmp/buildparu 2>/dev/null' EXIT TERM
+trap 'type _tui_kill_spinner &>/dev/null && _tui_kill_spinner 2>/dev/null || true; rm -rf "${TMPDIR:-/tmp}/buildyay" "${TMPDIR:-/tmp}/buildparu" 2>/dev/null' EXIT TERM
 
 # Load core libraries
 source ./sdata/lib/environment-variables.sh
@@ -79,6 +79,7 @@ source ./sdata/lib/package-installers.sh
 source ./sdata/lib/dist-determine.sh
 source ./sdata/lib/conflicts.sh
 source ./sdata/lib/versioning.sh
+source ./scripts/lib/config-path.sh
 source ./sdata/lib/robust-update.sh
 source ./sdata/lib/extras.sh
 source ./sdata/lib/doctor.sh
@@ -205,14 +206,18 @@ sync_user_inir_service_from_repo_if_present() {
     [[ -f "$service_asset" ]] || return 1
     inir_user_service_is_masked && return 2
 
-    mkdir -p "$service_target_dir"
-    mkdir -p "${XDG_CACHE_HOME:-$HOME/.cache}"
-    local service_dropin_dir="${service_target_dir}/inir.service.d"
-    local service_override="${service_dropin_dir}/override.conf"
     install_mode="$(get_installed_install_mode 2>/dev/null || true)"
     if [[ -z "$install_mode" || "$install_mode" == "unknown" ]]; then
         install_mode="$(get_install_mode 2>/dev/null || true)"
     fi
+    # the package installs the unit for everyone (NixOS module, `make install`), as `inir service install` knows: a
+    # copy here would shadow it, and its ExecStart names a launcher a package never writes
+    [[ "$install_mode" == "package-managed" ]] && return 0
+
+    mkdir -p "$service_target_dir"
+    mkdir -p "${XDG_CACHE_HOME:-$HOME/.cache}"
+    local service_dropin_dir="${service_target_dir}/inir.service.d"
+    local service_override="${service_dropin_dir}/override.conf"
 
     if [[ "$install_mode" == "repo-link" ]]; then
         local service_asset_real service_target_real override_tmp
@@ -276,6 +281,16 @@ EOF
     return 0
 }
 
+# compositor_wants_inir UNIT: systemd's own view of UNIT, for a package that wires inir.service for everyone (NixOS:
+# /etc/systemd/user/niri.service.wants): it wants inir.service wherever the link lives, or it is not installed and
+# starts nothing yet
+compositor_wants_inir() {
+    local state
+    state="$(systemctl --user show -p LoadState -p Wants "$1" 2>/dev/null)"
+    state=" ${state//$'\n'/ } "
+    [[ "$state" == *" LoadState=not-found "* || "${state//=/ }" == *" inir.service "* ]]
+}
+
 ensure_user_inir_service_enabled() {
     INIR_SERVICE_WIRING_CHANGED=0
     has_usable_systemd_user_manager || return 1
@@ -313,8 +328,9 @@ ensure_user_inir_service_enabled() {
     local service_real link_real
     service_real="$(readlink -f "$service_path" 2>/dev/null || printf '%s' "$service_path")"
     for unit in "${compositors[@]}"; do
-        mkdir -p "$systemd_user_dir/$unit.wants" || return 1
         link="$systemd_user_dir/$unit.wants/inir.service"
+        [[ "$installed_strategy" == "package-manager" && ! -L "$link" ]] && compositor_wants_inir "$unit" && continue
+        mkdir -p "$systemd_user_dir/$unit.wants" || return 1
         link_real="$(readlink -f "$link" 2>/dev/null || true)"
         if [[ ! -L "$link" || "$link_real" != "$service_real" ]]; then
             ln -sf "$service_path" "$link" || return 1
@@ -340,6 +356,8 @@ repair_update_owned_state() {
     elif [[ "${INIR_LEGACY_MALLOC_ENV_REPAIRED:-0}" -gt 0 ]]; then
         tui_success "Removed legacy global Quickshell allocator tuning"
     fi
+    repair_qt_platform_theme || tui_warn "Could not move Qt apps to KDE's theme"
+    [[ "${INIR_QT_THEME_REPAIRED:-0}" -gt 0 ]] && tui_success "Qt apps take KDE's theme (plasma-integration found)"
 
     if [[ "$include_repo_integration" == "true" ]]; then
         if repair_legacy_niri_shell_startup; then
@@ -1694,6 +1712,9 @@ show_install_completion() {
         "RAM:${ram}" \
         "Session:${compositor}"
 
+    # a package's copy made at login: nobody reads this but the journal, and the package owns rollback and reboots
+    [[ -n "${INIR_SESSION_SYNC:-}" ]] && return 0
+
     tui_section_start "After that"
     tui_list_item "Super+/ lists every shortcut, Super+, opens Settings"
     tui_list_item "Something off? inir doctor, then inir logs"
@@ -1707,6 +1728,11 @@ show_install_completion() {
 
 show_update_completion() {
     local version="$1" commit="$2"
+    # a package's copy synced at login: one line for the journal, the package owns rollback
+    if [[ -n "${INIR_SESSION_SYNC:-}" ]]; then
+        tui_info "Your copy of iNiR ${version} is in step with the package"
+        return 0
+    fi
     tui_alert "success" "Update applied" \
         "iNiR ${version} (${commit}) is synced. The shell restart was requested when the session allowed it."
 
@@ -1722,6 +1748,10 @@ show_update_completion() {
 ###############################################################################
 run_install() {
     detect_distro
+    # a package's dependencies and system services are its own (Nix: the module), never this setup's
+    if is_packaged_setup; then
+        export SKIP_ALLDEPS=true
+    fi
     local dependency_repair_only=false
     [[ -n "${ONLY_MISSING_DEPS:-}" ]] && dependency_repair_only=true
     # Filled by the install steps with what only a fresh login or a reboot applies.
@@ -1829,6 +1859,7 @@ run_install() {
     inir_event stage finish
     tui_task_run 3 "recording version"
     set_installed_version "$(get_repo_version)" "$(get_repo_commit)" "setup"
+    is_packaged_setup && inir_write_package_stamp "$REPO_ROOT"
     tui_task_done 3 "$(get_repo_version)"
     tui_task_finalize
 
@@ -2109,6 +2140,10 @@ _report_update_failure() {
     _write_update_status "failed:${code}:${msg}"
 }
 
+# ": GitHub is having trouble right now (HTTP 504), not iNiR" when a server this step used is down (net_down,
+# sdata/lib/environment-variables.sh), for the line the update notice shows
+_net_cause() { net_down "$@" && printf ': %s' "$NET_DOWN_CAUSE"; }
+
 _reexec_update_after_repo_change() {
     local reexec_args=()
     $ask || reexec_args+=("-y")
@@ -2303,7 +2338,7 @@ _update_engines() {
 # code alone: a full update brought the families with the base and restarts once itself.
 _update_hub_plugins() {
     local only="${1:-all}"
-    local cli="${XDG_DATA_HOME:-$HOME/.local/share}/inir/cli/inir" plugins="${XDG_DATA_HOME:-$HOME/.local/share}/inir/plugins"
+    local cli="${INIR_CLI:-${XDG_DATA_HOME:-$HOME/.local/share}/inir/cli/inir}" plugins="${XDG_DATA_HOME:-$HOME/.local/share}/inir/plugins"
     local state="${XDG_STATE_HOME:-$HOME/.local/state}/inir/hub" pending id kind name names=() code=() keep verified
     [[ -x "$cli" ]] || return 0
     pending="$("$cli" hub status --max-age 0 --json 2>/dev/null | jq -r '
@@ -2449,28 +2484,30 @@ run_update() {
     tui_title "Checking for updates..."
     echo ""
 
-    # Show current branch for awareness
-    local current_branch
-    local tracked_branch
-    current_branch="$(git -C "$REPO_ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")"
-    tracked_branch="$(get_update_tracking_branch 2>/dev/null || echo "main")"
-    if [[ "$current_branch" == "HEAD" ]]; then
-        tui_warn "Detached HEAD checkout. Updates will track origin/${tracked_branch}."
-    elif [[ "$current_branch" != "main" && "$current_branch" != "master" && "$current_branch" != "unknown" ]]; then
-        tui_warn "On branch '$current_branch' (non-release). Updates will track this branch."
-    else
-        tui_info "Branch: $tracked_branch"
-    fi
-
-    tui_info "Repo: $REPO_ROOT"
-    local invoked_from="${INIR_INVOKED_FROM:-${INVOKED_FROM:-$PWD}}"
-    if [[ "$invoked_from" != "$REPO_ROOT" && -e "${invoked_from}/.git" && -f "${invoked_from}/shell.qml" ]]; then
-        tui_warn "Updating that repo, not the one you are standing in:"
-        tui_dim "    you are in: $invoked_from"
-        if [[ "$REPO_ROOT" == "$SCRIPT_DIR" ]]; then
-            tui_dim "    that is where this setup lives"
+    # Show current branch for awareness; a package has no checkout to name
+    if ! is_packaged_setup; then
+        local current_branch
+        local tracked_branch
+        current_branch="$(git -C "$REPO_ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")"
+        tracked_branch="$(get_update_tracking_branch 2>/dev/null || echo "main")"
+        if [[ "$current_branch" == "HEAD" ]]; then
+            tui_warn "Detached HEAD checkout. Updates will track origin/${tracked_branch}."
+        elif [[ "$current_branch" != "main" && "$current_branch" != "master" && "$current_branch" != "unknown" ]]; then
+            tui_warn "On branch '$current_branch' (non-release). Updates will track this branch."
         else
-            tui_dim "    repo path comes from ~/.config/inir/version.json"
+            tui_info "Branch: $tracked_branch"
+        fi
+
+        tui_info "Repo: $REPO_ROOT"
+        local invoked_from="${INIR_INVOKED_FROM:-${INVOKED_FROM:-$PWD}}"
+        if [[ "$invoked_from" != "$REPO_ROOT" && -e "${invoked_from}/.git" && -f "${invoked_from}/shell.qml" ]]; then
+            tui_warn "Updating that repo, not the one you are standing in:"
+            tui_dim "    you are in: $invoked_from"
+            if [[ "$REPO_ROOT" == "$SCRIPT_DIR" ]]; then
+                tui_dim "    that is where this setup lives"
+            else
+                tui_dim "    repo path comes from ~/.config/inir/version.json"
+            fi
         fi
     fi
 
@@ -2481,7 +2518,7 @@ run_update() {
     local package_name=$(get_installed_package_name)
     local update_hint=$(get_installed_package_update_hint)
 
-    if [[ "$installed_strategy" == "package-manager" ]]; then
+    if [[ "$installed_strategy" == "package-manager" ]] && ! is_packaged_setup; then
         tui_warn "This iNiR installation is package-managed"
         tui_status_line "Install Mode:" "$installed_mode" ""
         [[ -n "$package_name" ]] && tui_status_line "Package:" "$package_name" ""
@@ -2531,8 +2568,30 @@ run_update() {
     # A sync without a pull takes its snapshot once everything it needs is downloaded (below): a retry that fails to
     # download changes nothing, and its snapshot of the same state pushed an older one out of the ten kept (11-08,
     # while GitHub answered 504).
-    local snapshot_due=""
-    if [[ "${_II_POST_PULL:-}" == "1" ]]; then
+    local snapshot_due="" packaged=false
+    if is_packaged_setup; then
+        # A package (Nix, `make install`) brings the base read-only: the update keeps the person's copy of it in step
+        # with the package and brings what no package carries (the Hub's items). The launcher runs this at the
+        # session's start whenever the package moved.
+        packaged=true
+        local own_runtime="${XDG_CONFIG_HOME}/quickshell/inir"
+        # older Nix modules linked the store's read-only payload here, where no family can be installed
+        [[ -L "$own_runtime" && "$(readlink -f "$own_runtime")" == /nix/store/* ]] && rm -f "$own_runtime"
+        if [[ ! -f "$own_runtime/shell.qml" ]]; then
+            tui_info "First start of this iNiR package: setting up your copy of it"
+            "$REPO_ROOT/setup" install -y --skip-deps
+            return $?
+        fi
+        if [[ "$(cat "$(inir_package_stamp_file)" 2>/dev/null)" == "$(inir_package_stamp "$REPO_ROOT")" ]]; then
+            tui_info "The base comes with your package (${update_hint:-your package manager}); checking the hub"
+            _update_hub_plugins || true
+            _write_update_status "success"
+            tui_success "iNiR is up to date with your package"
+            return 0
+        fi
+        tui_info "Your iNiR package moved to $(get_repo_version) ($(get_repo_commit)): syncing your copy of it"
+        snapshot_due="Before sync to the package's $(get_repo_commit)"
+    elif [[ "${_II_POST_PULL:-}" == "1" ]]; then
         unset _II_POST_PULL
         snapshot_due="${_II_SNAPSHOT_DUE:-}"
         unset _II_SNAPSHOT_DUE
@@ -2542,7 +2601,7 @@ run_update() {
         tui_info "Syncing from local repo (git pull skipped)"
         snapshot_due="Before local sync to $(get_repo_commit)"
     else
-        local update_rc=0
+        local update_rc=0 cause=""
         check_remote_updates || update_rc=$?
 
         if [[ "$update_rc" -eq 0 ]]; then
@@ -2567,6 +2626,13 @@ run_update() {
             local pull_log
             pull_log="$(mktemp)"
             if ! LC_ALL=C git -C "$REPO_ROOT" pull --ff-only origin "$tracked_branch" 2>"$pull_log"; then
+                cause="$(_net_cause "$(git -C "$REPO_ROOT" remote get-url origin 2>/dev/null)")"
+                if [[ -n "$cause" ]]; then
+                    _step_phase_fail "Git pull failed"
+                    _report_update_failure 25 "Could not download the new version, so nothing changed${cause}. inir update tries again"
+                    rm -f "$pull_log"
+                    return 25
+                fi
                 _step_phase_fail "Git pull failed"
                 tui_error "Git pull from origin/${tracked_branch} failed in ${REPO_ROOT}"
                 if [[ -s "$pull_log" ]]; then
@@ -2663,6 +2729,11 @@ run_update() {
             tui_info "Without one:"
             tui_dim "  git clone https://github.com/snowarch/inir.git ~/inir && cd ~/inir && ./setup install"
             return 21
+        elif [[ "$update_rc" -eq 2 ]] \
+                && cause="$(_net_cause "$(git -C "$REPO_ROOT" remote get-url origin 2>/dev/null)")" && [[ -n "$cause" ]]; then
+            _report_update_failure 25 "Could not look for a newer version, so nothing changed${cause}. inir update tries again"
+            tui_error "Could not look for a newer version, so nothing changed${cause}"
+            return 25
         elif [[ "$update_rc" -eq 2 ]]; then
             tui_warn "Could not reach origin to look for a newer version (offline or no tracked branch)"
             tui_info "Checking local repo vs installed version..."
@@ -2710,7 +2781,13 @@ run_update() {
         install_inir_cli_binary && cli_fetched=true
         # shellcheck disable=SC2086
         if ! needed="$(hub_plugins_needed "$hub_runtime" "$REPO_ROOT")" || ! hub_fetch_plugins "$(get_repo_version)" $needed; then
-            _report_update_failure 25 "Could not get your families from the hub, so nothing changed. The reason is in the update's output; inir update tries again"
+            local cause
+            cause="$(_net_cause https://inir.space/hub/index.json github.com)"
+            if [[ -n "$cause" ]]; then
+                _report_update_failure 25 "Could not get your families from the hub, so nothing changed${cause}. inir update tries again"
+            else
+                _report_update_failure 25 "Could not get your families from the hub, so nothing changed. The reason is in the update's output; inir update tries again"
+            fi
             tui_error "Could not get your families from the hub (the reason is just above), so nothing changed. Run inir update again once it is solved"
             return 25
         fi
@@ -2727,7 +2804,7 @@ run_update() {
     if [[ -n "$(prebuilt_behind)" ]]; then
         tui_info "Fetching qs-rs and inir-accel..."
         if ! prebuilt_fetch; then
-            _report_update_failure 25 "Could not get qs-rs and inir-accel, so nothing changed. inir update tries again"
+            _report_update_failure 25 "Could not get qs-rs and inir-accel, so nothing changed$(_net_cause "$(jq -r .manifest "${REPO_ROOT}/sdata/prebuilt.json" 2>/dev/null)" github.com). inir update tries again"
             tui_error "Could not get qs-rs and inir-accel, so nothing changed. inir update tries again once online"
             return 25
         fi
@@ -2855,8 +2932,9 @@ run_update() {
     find "$II_TARGET/scripts" \( -name "*.sh" -o -name "*.fish" -o \( -name "*.py" ! -name "test-*.py" \) \) -exec chmod +x {} \; 2>/dev/null || true
     [[ -f "${II_TARGET}/setup" ]] && chmod +x "${II_TARGET}/setup"
 
+    # a package puts its own launcher and desktop entries on PATH and XDG_DATA_DIRS
     local launcher_target="${XDG_BIN_HOME}/inir"
-    if [[ -f "${REPO_ROOT}/scripts/inir" ]]; then
+    if [[ -f "${REPO_ROOT}/scripts/inir" ]] && ! $packaged; then
         sync_launcher_from_repo >/dev/null || tui_warn "Could not refresh the inir launcher"
         if ! command -v inir &>/dev/null && [[ ":$PATH:" != *":${XDG_BIN_HOME}:"* ]]; then
             tui_warn "Launcher installed to ${launcher_target}, but ${XDG_BIN_HOME} is not in PATH for this shell"
@@ -2865,7 +2943,9 @@ run_update() {
 
     local _service_refresh_status=1
 
-    if sync_user_desktop_integration_from_repo; then
+    if $packaged; then
+        :
+    elif sync_user_desktop_integration_from_repo; then
         [[ "${INIR_DESKTOP_INTEGRATION_CHANGED:-0}" -gt 0 ]] && tui_success "Desktop integration updated"
     else
         tui_warn "Could not refresh desktop integration"
@@ -2995,7 +3075,8 @@ run_update() {
         fi
     fi
 
-    _update_dependencies
+    # a package's dependencies are its own (deps.toml mapped in nix/deps.nix)
+    $packaged || _update_dependencies
 
     # Run after dependency repair so newly installed providers get supervised
     # during the same update.
@@ -3023,9 +3104,11 @@ run_update() {
     # Signal success to the shell UI before restart
     _write_update_status "success"
 
-    # Restart shell (only if we have access to the session)
+    # Restart shell (only if we have access to the session); the launcher's own sync runs before the shell starts
     local not_loaded=""
-    if [[ -n "$NIRI_SOCKET" ]] || [[ -n "$WAYLAND_DISPLAY" ]]; then
+    if [[ -n "${INIR_SESSION_SYNC:-}" ]]; then
+        :
+    elif [[ -n "$NIRI_SOCKET" ]] || [[ -n "$WAYLAND_DISPLAY" ]]; then
         _step_phase_start 7 "Restarting shell"
         if inir_user_service_is_masked; then
             _step_phase_done "Shell restart skipped: inir.service is masked"
@@ -3080,6 +3163,7 @@ run_update() {
         tui_alert "error" "Update not applied" "The new version did not load. ${not_loaded}"
         return 24
     fi
+    $packaged && inir_write_package_stamp "$REPO_ROOT"
     show_update_completion "$repo_ver" "$repo_commit"
 }
 
@@ -3143,6 +3227,9 @@ fi
 # everything first and runs this same pipeline back (INIR_CLI_DELEGATED).
 hand_to_inir_cli() {
     [[ -z "${INIR_CLI_DELEGATED:-}" && -z "${INIR_NO_CLI:-}" ]] && $ask && [ -t 1 ] || return 0
+    # a first install has no binary yet: fetch it now, so the person gets the wizard (compositor, login screen,
+    # extras) instead of the bare pipeline; without it the pipeline below runs as before
+    [[ -x "${XDG_DATA_HOME:-$HOME/.local/share}/inir/cli/inir" ]] || install_inir_cli_binary || true
     local cli
     for cli in "${INIR_CLI:-}" "${XDG_DATA_HOME:-$HOME/.local/share}/inir/cli/inir" \
                /usr/local/lib/inir/inir /usr/lib/inir/inir; do

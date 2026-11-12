@@ -44,9 +44,9 @@ iNiR keeps its Niri settings in `~/.config/niri/config.d/`:
 
 With iNiR installed, install Umbriel from your distribution (CachyOS has it; on Arch it is `umbriel-git` in the AUR; on Fedora, Terra's `umbriel-nightly`; elsewhere [its guide](https://docs.noctalia.dev/umbriel/installation/)), log out and pick **Umbriel** at the login screen. Nothing else: on that first login iNiR puts its config in `~/.config/umbriel/`, brings your Niri keybinds and keyboard layout along, and the shell starts as it does on Niri. A config of your own in `~/.config/umbriel/` is never touched.
 
-`inir compositor add umbriel` does the same from a terminal, and installs Umbriel too where iNiR knows how (CachyOS's repository, then the AUR on Arch; Terra on Fedora).
+`inir compositor add umbriel` does the same from a terminal, and installs Umbriel too where iNiR knows how (CachyOS's repository, then the AUR on Arch; on Fedora from Terra, which it adds first).
 
-The installer asks where iNiR runs. **Niri and Umbriel** sets iNiR up on both (it installs Umbriel when it is missing); **Niri only**, offered when Umbriel is already installed, leaves Umbriel exactly as it is: no config, and the shell does not start there. Without a terminal to ask, `./setup install --compositor niri|umbriel|both` picks; with none of them, Umbriel gets iNiR the first time you log into it. `inir compositor remove umbriel` takes iNiR off Umbriel later, `inir compositor add umbriel` brings it back, and `inir compositor` alone shows what is installed, what starts iNiR and your pick.
+The installer asks where iNiR runs. **Niri and Umbriel** sets iNiR up on both (it installs Umbriel when it is missing); **Niri only**, offered when Umbriel is already installed, leaves Umbriel exactly as it is: no config, and the shell does not start there. Without a terminal to ask, `./setup install --compositor niri|umbriel|both` picks; with none of them, Umbriel gets iNiR the first time you log into it. When another shell is installed, or Umbriel already has a config of your own, the question defaults to **Niri only**, and `-y` with another shell kept picks it too. `inir compositor remove umbriel` takes iNiR off Umbriel later, `inir compositor add umbriel` brings it back, and `inir compositor` alone shows what is installed, what starts iNiR and your pick.
 
 ### Where Umbriel settings live
 
@@ -60,7 +60,8 @@ The installer asks where iNiR runs. **Niri and Umbriel** sets iNiR up on both (i
 | `config.d/50-startup.toml` | Processes started at login, including **Settings › Autostart** |
 | `config.d/70-binds.toml` | Keybinds |
 | `config.d/80-layer-rules.toml` | Layer rules for the shell |
-| `config.d/90-user-extra.toml` | Your own settings. Updates never touch it, and it loads last |
+| `config.d/90-user-extra.toml` | Your own settings. Updates never touch it |
+| `config.d/95-settings.toml` | What you change in iRiS Settings. It loads last, so a key set here and in `90-user-extra.toml` follows Settings |
 
 Your Niri keybinds (including the ones you added or removed), keyboard layout and key repeat come along: iNiR writes them to `config.d/60-from-niri.toml` when Umbriel is added, at every Umbriel login and on every update, and `inir compositor sync` does it again after you change them in Niri.
 
@@ -70,7 +71,8 @@ Keys Umbriel adds: **Mod+W** tabs a column, **Mod+P** pins a window, **Mod+Shift
 
 ### What differs from Niri
 
-- **Settings › Compositor** (Material) and the window, keyboard and display rows of iRiS edit Niri's files, so they are hidden under Umbriel; its `config.d` files hold the same settings.
+- iRiS: **iRiS Settings** asks the compositor in use what it can do and shows only that, in one group of the sidebar named for it (**Umbriel** or **Niri**): Displays, Layout, Windows, Glass & effects, Movement, Keyboard, Mouse & pointer. Under Umbriel, **Layout** draws the arrangements (scrolling, dwindle, main and stack, floating) to pick from; **Windows** has borders, corners, shadows, tabs and title bars; **Glass & effects** the compositor's blur and the effects Umbriel draws (press the screen, a window, its border or the pointer on the drawn desk); **Movement** how windows move; **Displays** lets you drag your screens to where they stand, pick a scale from miniatures of your screen, and set HDR and colour depth, with 15 seconds to keep or undo a display change; under **Workspaces** each screen's workspaces are drawn as miniatures (press how many it keeps, as needed or fixed, stacked or side by side, looping or not) and new windows open at the width you pick, for one screen there or for all under **Layout**; an HDMI screen that looks darker at its highest refresh rate than at 60 Hz (it reads every signal as limited range, while the GPU sends its own modes in full range) gets **Fix a darker picture** under **Colour**, applied only at the rates that need it; hot corners are pressed on a drawn screen under **Mouse & pointer**. A row shows only when your machine can do it: variable refresh and HDR on a screen that has them, the trackpad's rows with a trackpad. Everything goes to `config.d/95-settings.toml`. If your own `config.toml` lists its files, Settings asks before adding the one line that loads it.
+- Material: **Settings › Compositor** edits Niri's files and shows under Niri; under Umbriel its place is taken by **Settings › Umbriel**, which holds screens, workspaces, layout, windows, glass, movement and input. Rows about hardware you do not have (a drawing tablet, a touch screen, a laptop lid, an NVIDIA card) are not shown.
 - **Compositor blur**: iRiS's *Blur* glass asks Umbriel to blur behind the shell through a layer rule. Material and Waffle use their own glass.
 - Window previews are stills, refreshed when you open a surface that shows them; on Niri they can be live.
 - Alt+Tab is iNiR's switcher. Screenshots of a whole screen or a region use `inir region`, as on Niri.

@@ -211,7 +211,7 @@ install-yay(){
   tui_info "Installing yay (AUR helper)..."
 
   # Clean up previous attempts
-  rm -rf /tmp/buildyay
+  rm -rf "${TMPDIR:-/tmp}/buildyay"
 
   # Sync databases and install base-devel
   if ! pkg_sudo pacman -Sy --needed --noconfirm base-devel git; then
@@ -220,28 +220,29 @@ install-yay(){
   fi
 
   # Clone yay-bin (faster than compiling yay)
-  git clone https://aur.archlinux.org/yay-bin.git /tmp/buildyay || return 1
+  git clone https://aur.archlinux.org/yay-bin.git "${TMPDIR:-/tmp}/buildyay" || { net_down aur.archlinux.org; return 1; }
 
   # Build and install
-  x cd /tmp/buildyay
+  x cd "${TMPDIR:-/tmp}/buildyay"
   if ! makepkg -si --noconfirm; then
+      net_down github.com aur.archlinux.org
       log_error "Failed to build yay; install an AUR helper (yay or paru) yourself, then: ./setup install"
       x cd "${REPO_ROOT}"
       return 1
   fi
 
   x cd "${REPO_ROOT}"
-  rm -rf /tmp/buildyay
+  rm -rf "${TMPDIR:-/tmp}/buildyay"
 }
 
 install-paru(){
   tui_info "Installing paru (AUR helper)..."
   x pkg_sudo pacman -S --needed --noconfirm base-devel git
-  x git clone https://aur.archlinux.org/paru-bin.git /tmp/buildparu
-  x cd /tmp/buildparu
+  x git clone https://aur.archlinux.org/paru-bin.git "${TMPDIR:-/tmp}/buildparu"
+  x cd "${TMPDIR:-/tmp}/buildparu"
   x makepkg -si --noconfirm
   x cd "${REPO_ROOT}"
-  rm -rf /tmp/buildparu
+  rm -rf "${TMPDIR:-/tmp}/buildparu"
 }
 
 ensure_aur_helper(){
@@ -316,7 +317,7 @@ install-jetbrains-mono-nerd(){
   log_info "Downloading JetBrains Mono Nerd Font..."
 
   local font_dir="${HOME}/.local/share/fonts"
-  local temp_dir="/tmp/nerdfonts-$$"
+  local temp_dir="${TMPDIR:-/tmp}/nerdfonts-$$"
   mkdir -p "$font_dir" "$temp_dir"
 
   if curl -fsSL -o "$temp_dir/JetBrainsMono.zip" \
@@ -340,7 +341,7 @@ install-geist-font(){
   log_info "Downloading Geist font..."
 
   local font_dir="${HOME}/.local/share/fonts"
-  local temp_dir="/tmp/geist-font-$$"
+  local temp_dir="${TMPDIR:-/tmp}/geist-font-$$"
   mkdir -p "$font_dir" "$temp_dir"
 
   if curl -fsSL -o "$temp_dir/geist.zip" \
@@ -390,7 +391,7 @@ install-whitesur-icons(){
 
   log_info "Installing WhiteSur icon theme..."
 
-  local temp_dir="/tmp/whitesur-icons-$$"
+  local temp_dir="${TMPDIR:-/tmp}/whitesur-icons-$$"
   mkdir -p "$temp_dir" "$icon_dir"
 
   if curl -fsSL -o "$temp_dir/whitesur.tar.gz" \
@@ -422,7 +423,7 @@ install-mactahoe-icons(){
 
   log_info "Installing MacTahoe icon theme..."
 
-  local temp_dir="/tmp/mactahoe-icons-$$"
+  local temp_dir="${TMPDIR:-/tmp}/mactahoe-icons-$$"
   mkdir -p "$temp_dir" "$icon_dir"
 
   if curl -fsSL -o "$temp_dir/mactahoe.tar.gz" \
@@ -453,7 +454,7 @@ install-bibata-cursors(){
 
   log_info "Installing Bibata cursor theme..."
 
-  local temp_dir="/tmp/bibata-cursors-$$"
+  local temp_dir="${TMPDIR:-/tmp}/bibata-cursors-$$"
   mkdir -p "$temp_dir" "$icon_dir"
 
   # Download Bibata Modern Classic (dark)
@@ -499,7 +500,7 @@ install-github-binary(){
     return 1
   fi
 
-  local temp_dir="/tmp/${name}-install-$$"
+  local temp_dir="${TMPDIR:-/tmp}/${name}-install-$$"
   mkdir -p "$temp_dir"
 
   local filename=$(basename "$download_url")
@@ -568,16 +569,16 @@ install-eza(){
   log_info "Installing Eza..."
 
   mkdir -p ~/.local/bin
-  if curl -fsSL -o /tmp/eza.tar.gz \
+  if curl -fsSL -o "${TMPDIR:-/tmp}/eza.tar.gz" \
     'https://github.com/eza-community/eza/releases/latest/download/eza_x86_64-unknown-linux-musl.tar.gz'; then
-    tar -xzf /tmp/eza.tar.gz -C ~/.local/bin
+    tar -xzf "${TMPDIR:-/tmp}/eza.tar.gz" -C ~/.local/bin
     chmod +x ~/.local/bin/eza
     log_success "Eza installed"
   else
     log_warning "Could not install Eza"
   fi
 
-  rm -f /tmp/eza.tar.gz
+  rm -f "${TMPDIR:-/tmp}/eza.tar.gz"
 }
 
 # yt-dlp for YT Music: upstream's own build, the same on every distro (packages fall behind YouTube) and brought
@@ -599,6 +600,12 @@ ytdlp_build() {
 install-ytdlp(){
   local dir asset tag have base tmp
   dir="$(ytdlp_dir)"
+  # NixOS runs no foreign builds (no FHS loader): the system's yt-dlp (the iNiR package brings it) takes that place
+  if [[ -e /etc/NIXOS ]]; then
+    have="$(command -v yt-dlp 2>/dev/null)" || { log_warning "YT Music needs yt-dlp; the iNiR package brings it"; return 1; }
+    mkdir -p "$dir" && ln -sfn "$have" "$dir/yt-dlp" && rm -rf "$dir/_internal"
+    return
+  fi
   if ! asset="$(ytdlp_build)"; then
     log_warning "YT Music: yt-dlp has no build for $(uname -m); the distro's yt-dlp is used"
     return 0

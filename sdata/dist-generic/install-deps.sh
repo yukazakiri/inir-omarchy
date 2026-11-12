@@ -50,6 +50,7 @@ echo ""
 echo -e "${STY_BLUE}Runtime tools:${STY_RST}"
 check_cmd "fish" "Fish shell"
 check_cmd "jq" "jq"
+check_cmd "file" "file"
 check_cmd "curl" "curl"
 check_cmd "unzip" "unzip"
 check_cmd "wl-copy" "wl-clipboard"
@@ -217,7 +218,7 @@ echo "  plasma-browser-integration (browser MPRIS sessions and artwork)"
 echo ""
 
 echo -e "${STY_BLUE}Utilities (required):${STY_RST}"
-echo "  fish, jq, curl, git, rsync, ripgrep, unzip, python3"
+echo "  fish, jq, file, curl, git, rsync, ripgrep, unzip, python3"
 echo "  libnotify, imagemagick, brightnessctl"
 echo ""
 
@@ -302,7 +303,7 @@ if $ask; then
     # JetBrains Mono Nerd Font
     if ! fc-list 2>/dev/null | grep -qi "JetBrainsMono Nerd"; then
       echo "  Downloading JetBrains Mono Nerd Font..."
-      TEMP_DIR="/tmp/fonts-$$"
+      TEMP_DIR="${TMPDIR:-/tmp}/fonts-$$"
       mkdir -p "$TEMP_DIR"
       
       if curl -fsSL -o "$TEMP_DIR/JetBrainsMono.zip" \

@@ -237,12 +237,15 @@ runtime_payload() (
       payload_paths >/dev/null || exit 1
       separate "$target" || fail "destination must be a separate installed directory"
       retire_checkout "$target"
-      local -a args=(rsync -a) link
+      local -a args=(rsync -a --chmod=u+w) link  # a read-only payload (Nix store) still gives a copy the person owns
       # `inir hub` plugins are links under modules/ the payload never put there: --delete leaves them.
       while IFS= read -r link; do
         [[ -e "$root/modules/$link" ]] || args+=("--filter=P /modules/$(sed 's/[*?[\\]/\\&/g' <<< "$link")")
       done < <(find "$target/modules/" -type l -printf '%P\n' 2>/dev/null)
       mapfile -t -O "${#args[@]}" args < <(rsync_filters "")
+      # a store payload (Nix) dates every file 1 s after the epoch: size and date can't tell an update from what is
+      # there, so a change that keeps a file's size would never reach the copy
+      [[ "$(stat -c %Y -- "$root/shell.qml" 2>/dev/null)" != 1 ]] || args+=(--checksum)
       ! $delete || args+=(--delete)
       [[ -z "$out_format" ]] || args+=("--out-format=$out_format")
       for p in "$root"/*.qml; do [[ -f "$p" ]] && args+=("--include=/${p##*/}"); done

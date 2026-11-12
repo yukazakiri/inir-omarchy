@@ -1,5 +1,12 @@
 <p align="center">
-  <img src="../images/releases/3.0.0/00-hero.webp" alt="iNiR 3.0: o desktop iRiS sobre uma floresta nevada à noite" width="100%">
+  <img src="../shots/readme-hero.webp" alt="O desktop iRiS em uso: a Island tocando música sobre os widgets do painel" width="100%">
+</p>
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: light)" srcset="../images/readme/mark-light.svg">
+    <img src="../images/readme/mark-dark.svg" alt="" width="56">
+  </picture>
 </p>
 
 <h1 align="center">iNiR</h1>
@@ -30,33 +37,26 @@
   </sub>
 </p>
 
-## Novidades da 3.0
+## Famílias
 
-Uma base pequena com cada família como plugin, um runtime próprio, uma casa em [inir.space](https://inir.space) e novas Settings para o iRiS. Um `inir update` traz tudo isso e mantém sua configuração. [Leia o changelog completo](../../CHANGELOG.md).
+<p align="center"><img src="../shots/readme-iris.webp" alt="iRiS" width="100%"><br><sub><b>iRiS</b> · Uma Island em qualquer borda, que se transforma no que você abre, mais um dock</sub></p>
 
 <table>
 <tr>
-<td width="50%" valign="top"><img src="../images/releases/3.0.0/01-prism.webp" alt="Prism" width="100%"><br><sub><b>Prism</b><br>As Settings do iRiS refeitas: cada opção em um só lugar, com uma prévia ao vivo do que ela muda.</sub></td>
-<td width="50%" valign="top"><img src="../images/releases/3.0.0/02-island.webp" alt="A Island" width="100%"><br><sub><b>A Island</b><br>Música, timers e atividades ao vivo em um único objeto no topo, em dezesseis designs.</sub></td>
-</tr>
-<tr>
-<td width="50%" valign="top"><img src="../images/releases/3.0.0/04-airisu.webp" alt="AIRISU" width="100%"><br><sub><b>AIRISU</b><br>O primeiro Design: painéis, layout e voz próprios sobre o motor do iRiS.</sub></td>
-<td width="50%" valign="top"><img src="../images/releases/3.0.0/03-edit-mode.webp" alt="Modo de edição" width="100%"><br><sub><b>Modo de edição</b><br>Arraste, redimensione e salve os widgets da área de trabalho, e troque áreas de trabalho inteiras com um clique.</sub></td>
-</tr>
-<tr>
-<td width="50%" valign="top"><img src="../images/releases/3.0.0/06-material.webp" alt="Material" width="100%"><br><sub><b>Material</b><br>Os mesmos widgets com as faces próprias do Material, com Settings e tipografia renovadas.</sub></td>
-<td width="50%" valign="top"><img src="../images/releases/3.0.0/05-hub.webp" alt="iNiR Hub" width="100%"><br><sub><b>iNiR Hub</b><br>Famílias, Designs, temas e widgets como plugins, em inir.space/hub e dentro do shell.</sub></td>
+<td width="50%" valign="top"><img src="../shots/readme-material.webp" alt="Material" width="100%"><br><sub><b>Material</b> · Uma barra em qualquer borda, painéis laterais, visão geral, estilos globais</sub></td>
+<td width="50%" valign="top"><img src="../shots/readme-waffle.webp" alt="Waffle" width="100%"><br><sub><b>Waffle</b> · Uma barra de tarefas do Windows 11 e centro de ação</sub></td>
 </tr>
 </table>
 
-## Famílias
-
-| Material | Waffle | iRiS |
-|:---:|:---:|:---:|
-| <img src="../shots/families-material.webp" alt="Material" width="290"> | <img src="../shots/families-waffle.webp" alt="Waffle" width="290"> | <img src="../shots/families-iris.webp" alt="iRiS" width="290"> |
-| Uma barra em qualquer borda, painéis laterais, visão geral, nove estilos globais | Uma barra de tarefas do Windows 11 e centro de ação | Uma Island em qualquer borda, que se transforma no que você abre, mais um dock |
-
 `Super+Shift+W` alterna entre elas. Mais aparências, widgets, temas e aplicativos web estão no [hub](https://inir.space/hub).
+
+<table>
+<tr>
+<td width="33%" valign="top"><img src="../shots/readme-settings.webp" alt="Configurações" width="100%"><br><sub><b>Configurações</b> · Cada opção desenhada como aquilo que muda</sub></td>
+<td width="33%" valign="top"><img src="../shots/readme-edit.webp" alt="Desktop" width="100%"><br><sub><b>Desktop</b> · Widgets que você posiciona, redimensiona e empilha</sub></td>
+<td width="33%" valign="top"><img src="../shots/readme-lock.webp" alt="Bloqueio" width="100%"><br><sub><b>Bloqueio</b> · Calmo, com sua música e a hora</sub></td>
+</tr>
+</table>
 
 ## Instalação
 
