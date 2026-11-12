@@ -10,6 +10,7 @@
 set -u
 
 cmd="${1:-status}"
+SELF_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 AUTOLOGIN_CONF="/etc/sddm.conf.d/autologin.conf"
 SETTER_CANDIDATES=(
   "/usr/local/bin/local-niri-switch-set-session"
@@ -79,7 +80,7 @@ set_session() {
   setter=$(find_setter) || {
     echo "compositor-switch: no SDDM setter installed." >&2
     echo "Install one (needs root once):" >&2
-    echo "  sudo cp \"\$(inir scripts-path 2>/dev/null)/sddm-set-autologin-session\" /usr/local/bin/ && sudo chmod 755 /usr/local/bin/sddm-set-autologin-session" >&2
+    echo "  sudo cp \"$SELF_DIR/sddm-set-autologin-session\" /usr/local/bin/ && sudo chmod 755 /usr/local/bin/sddm-set-autologin-session" >&2
     return 1
   }
   elevate "$setter" "$desktop"

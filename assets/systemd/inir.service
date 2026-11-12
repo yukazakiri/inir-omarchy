@@ -1,28 +1,27 @@
 [Unit]
 Description=iNiR shell
-# Niri owns the graphical-session environment.  Since the compositor unit is
-# Type=notify, ordering after it guarantees DISPLAY, WAYLAND_DISPLAY and
-# NIRI_SOCKET have already been published to the user manager before iNiR starts.
+# The compositor owns the graphical-session environment: Niri, Umbriel, or the
+# uwsm-managed Omarchy-Niri session, whichever the person logged into.  All are
+# Type=notify, so ordering after them guarantees DISPLAY, WAYLAND_DISPLAY and
+# NIRI_SOCKET / UMBRIEL_SOCKET are already published to the user manager before
+# iNiR starts.  Only a wants link under one of them starts it ('inir service
+# enable'); stopping the session stops iNiR.
 #
-# Two Niri session topologies are supported and both are named here, because
-# dependency lists cannot be reset from a drop-in:
 #   niri.service                     stock niri-session / systemd-run
+#   umbriel.service                  Umbriel sessions
 #   wayland-wm@niri.desktop.service  uwsm sessions, e.g. Omarchy's
-#                                    omarchy-niri.desktop (migration 045)
-# Ordering against a unit that does not exist is ignored, so naming both is
-# harmless on a machine that only has one of them.
-PartOf=niri.service wayland-wm@niri.desktop.service
-After=niri.service wayland-wm@niri.desktop.service
-# Requisite= cannot express "either compositor": it requires every listed unit
-# to be active, so a uwsm session (where niri.service never starts) or a stock
-# session would each block the other. ExecCondition can, and unlike a
-# dependency it is resettable from a drop-in.
+#                                    omarchy-niri.desktop
 #
+# Naming units that do not exist is harmless: ordering against a missing unit
+# is ignored.  The wants link, not this list, decides which session starts the
+# shell automatically.
+PartOf=niri.service umbriel.service wayland-wm@niri.desktop.service
+After=niri.service umbriel.service wayland-wm@niri.desktop.service
 # Which session may start the shell automatically is decided by the wants link,
 # not by this gate: the gate only refuses to run a shell with no compositor
-# session at all (a bare TTY, KDE, GNOME). Hyprland is accepted so the shell
+# session at all (a bare TTY, KDE, GNOME).  Hyprland is accepted so the shell
 # can be swapped in place inside a live Omarchy session (scripts/shell-switch.sh).
-ExecCondition=/bin/sh -c 'systemctl --user is-active --quiet niri.service || systemctl --user is-active --quiet wayland-wm@niri.desktop.service || [ -n "$NIRI_SOCKET" ] || [ -n "$HYPRLAND_INSTANCE_SIGNATURE" ]'
+ExecCondition=/bin/sh -c 'systemctl --user is-active --quiet niri.service || systemctl --user is-active --quiet umbriel.service || systemctl --user is-active --quiet wayland-wm@niri.desktop.service || [ -n "$NIRI_SOCKET" ] || [ -n "$UMBRIEL_SOCKET" ] || [ -n "$HYPRLAND_INSTANCE_SIGNATURE" ]'
 # Keep the StatusNotifier watcher ready before desktop autostart applications
 # register tray items.  Niri also orders itself before this target.
 Before=xdg-desktop-autostart.target
@@ -42,8 +41,10 @@ BusName=org.kde.StatusNotifierWatcher
 # QT_LOGGING_RULES suppresses noisy Qt/KF warnings.
 Environment=QT_SCALE_FACTOR=1
 Environment=QT_SCALE_FACTOR_ROUNDING_POLICY=RoundPreferFloor
-Environment=QT_LOGGING_RULES=quickshell.dbus.properties=false;qt.qml.settings.warning=false;qt.core.qsettings.warning=false;kf.xmlgui=false;kf.coreaddons=false;kf.config.core=false;kf.iconthemes=false;qt.qpa.wayland.textinput.warning=false
+Environment=QT_LOGGING_RULES=quickshell.dbus.properties=false;quickshell.dbus.objectmanager.warning=false;qt.qml.settings.warning=false;qt.core.qsettings.warning=false;kf.xmlgui=false;kf.coreaddons=false;kf.config.core=false;kf.iconthemes=false;qt.qpa.wayland.textinput.warning=false
 
+# Started by hand outside a session (a TTY, another desktop): skip, never a failure.
+ExecCondition=/bin/sh -c 'systemctl --user is-active --quiet niri.service || systemctl --user is-active --quiet umbriel.service'
 ExecStart=/usr/bin/inir run --session
 SuccessExitStatus=143
 
@@ -61,12 +62,13 @@ Restart=on-failure
 RestartSec=5
 TimeoutStopSec=15
 
-# Disable coredumps and QS crash reports.  Unpatched Quickshell segfaults
-# on hot-reload (use-after-free in IpcHandlerRegistry — extensions freed
-# before root destruction).  Each coredump is 45-90 MB and QS crash reports
-# accumulate in ~/.cache/quickshell/crashes/.  See patches/quickshell/ for
-# the upstream fix.
+# Disable coredumps and QS crash reports. Stock Quickshell can segfault on
+# hot-reload (extensions freed before the root), each coredump is 45-90 MB and
+# its crash reports pile up in ~/.cache/quickshell/crashes/.
 LimitCORE=0
+# The shell holds an fd per process, watch, socket and texture source; the 1024 default ran out after a
+# long day of reloads and Wayland dropped the connection ("Too many open files").
+LimitNOFILE=65536
 Environment=QS_DISABLE_CRASH_HANDLER=1
 
 # Clean up stale Quickshell runtime entries (by-pid, by-id) left behind
@@ -79,5 +81,6 @@ ExecStopPost=-/usr/bin/inir cleanup-orphans
 IOSchedulingPriority=2
 
 # No [Install] section — wiring is managed by 'inir service enable' which
-# creates a compositor-specific wants link (e.g. niri.service.wants/) so
-# inir only starts under the correct compositor, not under KDE/GNOME/etc.
+# creates compositor-specific wants links (niri.service.wants/,
+# umbriel.service.wants/) so inir only starts under a compositor it runs on,
+# not under KDE/GNOME/etc.

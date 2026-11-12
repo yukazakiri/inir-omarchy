@@ -1,27 +1,29 @@
-# Autostart and Session
+# Autostart and session
 
-How iNiR starts, how apps autostart, and how sessions end.
+Choose the apps that start with iNiR, and what happens when you lock, reboot or shut down.
 
-## Shell startup
+## Apps and commands at login
 
-iNiR is started by the session supervisor selected for the current machine. On
-a normal Arch/systemd-user session that is `inir.service`; on the supported
-Void runit path it is a Turnstile-managed user service or the guarded runsvdir
-fallback. The goal is the same in every tier: exactly one shell, tied to the
-Niri session, with the compositor's authoritative environment and crash
-recovery owned by a supervisor.
+**Settings › Autostart** (Waffle: **Waffle Settings › Autostart**) has three tabs:
 
-On the systemd tier, the service connects to the compositor via a wants link:
+- **Applications**: turn on the apps from your menu that should start at login.
+- **Commands**: add a command, such as `telegram-desktop --start-minimized`, to run at login.
+- **Guide**: how it works.
+
+Niri launches these, so they keep running if the shell restarts. The page only works while Niri or Umbriel is your compositor.
+
+iNiR starts from a systemd user unit wired to the compositor session:
 
 ```
 ~/.config/systemd/user/niri.service.wants/inir.service
+~/.config/systemd/user/umbriel.service.wants/inir.service
 ```
 
-When Niri starts, `inir.service` waits for the `Type=notify` compositor service to report ready, so it inherits Niri's authoritative `DISPLAY`, `WAYLAND_DISPLAY` and `NIRI_SOCKET`. When Niri stops, iNiR stops. Manage the link with:
+When the compositor starts, `inir.service` waits for its `Type=notify` unit to report ready, so it inherits the authoritative `DISPLAY`, `WAYLAND_DISPLAY` and `NIRI_SOCKET` / `UMBRIEL_SOCKET`. When the compositor stops, iNiR stops. Manage the link with:
 
 ```bash
-inir service enable     # create wants link
-inir service disable    # remove it
+inir service enable     # create wants links
+inir service disable    # remove them
 inir service status     # check state
 ```
 
@@ -30,22 +32,21 @@ inir service status     # check state
 Omarchy's Niri entry (`/usr/local/share/wayland-sessions/omarchy-niri.desktop`)
 starts the compositor through uwsm, so Niri runs inside the generated
 `wayland-wm@niri.desktop.service` and `niri.service` never becomes active.
-In that topology the stock `Requisite=niri.service` would refuse every start,
-so the shell would silently never come up.
+The shipped `inir.service` names that unit in its `PartOf=` / `After=` lists, so
+the shell stops with the uwsm session and never leaks into the next login.
+`setup install`, `setup update` and `inir service enable` detect the
+`omarchy-niri.desktop` session and add the matching wants link:
 
-Migration `045-omarchy-uwsm-session` detects that session and adds:
-
-- `~/.config/systemd/user/inir.service.d/omarchy-uwsm.conf` — resets
-  `Requisite=`, and adds `After=`/`PartOf=` for `wayland-wm@niri.desktop.service`
-  so iNiR stops with the session and never leaks into the next login
-- `~/.config/systemd/user/wayland-wm@niri.desktop.service.wants/inir.service` —
-  the wants link that starts iNiR on Omarchy-Niri login only
+```
+~/.config/systemd/user/wayland-wm@niri.desktop.service.wants/inir.service
+```
 
 Startup is still gated by the wants link, so iNiR does not appear under
-Hyprland, KDE, or GNOME. `inir service enable` and the update/repair paths
-treat both `niri.service` and `wayland-wm@niri.desktop.service` as valid
-lifecycle owners. The migration is a no-op on machines without the
-Omarchy-Niri session; delete the drop-in if you stop using it.
+Hyprland, KDE, or GNOME. Hyprland is accepted by the unit's `ExecCondition` only
+so the shell can be swapped in place inside a live Omarchy session
+(`scripts/shell-switch.sh`). Older installs may still have the
+`inir.service.d/omarchy-uwsm.conf` drop-in from v2.33; it is harmless and can be
+deleted once the new wants link is present.
 
 On Void without a usable systemd user manager, setup renders
 `~/.config/service/inir/run`. Turnstile provides the user-session lifecycle and
@@ -82,66 +83,35 @@ Manage autostart entries from Settings > System > Autostart (there is no CLI for
 
 ## Lock screen
 
-The lock screen uses Wayland's session lock protocol (WlSessionLock). This is a security protocol: when active, all other surfaces are hidden and only the lock surface is visible. There's no way to bypass it by switching workspaces or killing processes.
+<!-- preview shot=lock -->
 
-### Authentication
+- **Super+Alt+L** locks the session. Unlock with your password.
+- If the shell's lock screen does not appear within two seconds, swaylock or hyprlock takes over, whichever is installed.
 
-- **Password**: PAM authentication (same as your login password)
-- **Fingerprint**: supported if your system has fprintd configured
+Settings › System › Lock screen:
 
-### Fallback
+- **Use Hyprlock (instead of Quickshell)** is off by default.
+- **Launch on startup** is off by default. Turn it on to use Quickshell as your lock screen provider.
+- **Require password to power off/restart** is on by default. It guards against accidents only.
+- **Also unlock keyring** is on by default.
+- **Show notifications on lock screen** is off by default.
 
-If the QML lock surface fails to render within 2 seconds, iNiR falls back to swaylock or hyprlock (whichever is installed). This prevents the session from being locked with no visible unlock UI.
-
-### IPC
-
-```bash
-inir lock activate     # lock the session
-inir lock deactivate   # unlock (requires auth)
-inir lock status       # check lock state
-```
-
-### Config
-
-Lock settings are in Settings > System > Lock:
-- Blur background (on/off)
-- Auto-lock on startup
-- Unlock GNOME Keyring after authentication
+The lock screen's look (blur, clock, widgets) is further down the same page, under **Style: Blurred**.
 
 ## Session screen
 
-The session screen provides logout, reboot, shutdown, and suspend actions. Access it from:
-- Keybind (configurable)
-- Power button in the bar/taskbar
-- IPC: `inir session open`
+**Super+Shift+Q** opens the session screen with log out, reboot, shut down and hibernate. It warns you first if a package manager is running or a download may be in progress.
 
-Before executing an action, the session screen checks for running package managers and active downloads. If found, it warns you before proceeding.
+## Idle and sleep
 
-## Polkit agent
+Material: **Settings › Services › System › Idle & Sleep**. Each timeout is in seconds, and 0 means never.
 
-iNiR is your PolicyKit authentication agent. When a privileged operation needs authorization (installing a package, mounting a disk), its dialog asks for your password, in the look of the family you use. Niri starts no other agent.
+- **Screen off**: 300 seconds by default.
+- **Lock screen**: 600 seconds by default.
+- **Suspend**: off by default.
 
-If you run an agent of your own, iNiR sees it at start and steps aside. Turn the shell's agent off with `QS_DISABLE_POLKIT=1`.
+**Lock before sleep** is on by default. **Separate timeouts on battery** gives battery its own values. In iRiS, idle is in iRiS Settings instead.
 
-While the shell is restarting, nothing answers graphical prompts and they fail as not authorized; try again once it is back (systemd restarts it on its own). `pkexec` and `run0` in a terminal ask there instead.
+## Authentication prompts
 
-On the supported Void Turnstile tier the shell starts with `QS_DISABLE_POLKIT=1`.
-Turnstile's per-user service manager belongs to an elogind background session, so
-a Quickshell listener registered from that service is not the same subject as the
-seat0 graphical session and polkit rejects it. Because the shell runs outside the
-session there, Niri starts `polkit-gnome` (installed by the Void dependency
-profile) from the Turnstile block of the startup file; setup writes that line only
-for this tier and removes it if the tier changes. The systemd and runsvdir tiers
-run the shell inside the session, where it stays the only agent.
-
-## Idle management
-
-Idle timeouts are handled by swayidle, configured through Settings or IPC:
-
-- **Screen off**: turn off monitors after inactivity (default: 5 minutes)
-- **Lock**: lock the session after inactivity (default: 10 minutes)
-- **Suspend**: suspend the system after inactivity (default: off)
-
-Idle timeouts are configured in Settings (backed by `services/Idle.qml`); there is no `inir idle` CLI command.
-
-Fullscreen video players and presentations automatically inhibit idle via the idle-inhibit Wayland protocol.
+iNiR is your system's authentication agent. When something needs your password, such as installing a package, the prompt appears in the shell's look. If you run another agent, iNiR steps aside. To turn iNiR's agent off, use **Settings › Modules › Polkit Agent**.

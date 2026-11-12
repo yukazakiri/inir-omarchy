@@ -53,8 +53,8 @@ INIR_MAP_APPS="taskview toggle"
 INIR_MAP_SYSTEM="session toggle"
 INIR_MAP_CAPTURE="region menu"
 INIR_MAP_TOGGLE="overview toggle"
-INIR_MAP_HARDWARE="settingsNav settings/hardware"
-INIR_MAP_THEME="settingsNav settings/appearance"
+INIR_MAP_HARDWARE="settingsNav open hardware"
+INIR_MAP_THEME="settingsNav open appearance"
 INIR_MAP_BACKGROUND="wallpaperSelector toggle"
 INIR_MAP_KEYBINDINGS="cheatsheet toggle"
 INIR_MAP_EMOJIS="globalActions open"
@@ -108,7 +108,7 @@ if [ "$shell" = "inir" ] && inir_launcher >/dev/null; then
     target="${!var:-}"
     if [ -n "$target" ]; then
         # shellcheck disable=SC2086
-        exec "$INIR" $target
+        exec "$INIR" $target "$@"
     fi
 
     log "no iNiR equivalent for '$action' (shell: $shell)"

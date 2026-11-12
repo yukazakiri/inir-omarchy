@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
 # Migration 045: keep inir.service alive under the Omarchy-Niri uwsm session.
+#
+# LEGACY (iNiR 3.x): the 3.0 base no longer ships a migration runner. The same
+# wiring is now automatic in scripts/lib/compositor.sh (compositor_units) and
+# assets/systemd/inir.service. This file is kept as a manual fallback for old
+# installs; setup, update and `inir service enable` do not call it.
 
 MIGRATION_ID="045-omarchy-uwsm-session"
 MIGRATION_TITLE="Wire inir.service to the Omarchy-Niri uwsm session"
