@@ -290,9 +290,9 @@ ensure_user_inir_service_enabled() {
         service_path="$(systemctl --user show -p FragmentPath --value inir.service 2>/dev/null || true)"
     fi
 
-    [[ -f "$service_path" ]] || return 1
     # Wired under both compositors iNiR runs on as soon as either is installed: the one picked at login starts it,
     # even one installed after iNiR. Only Niri's when the person picked Niri alone (scripts/lib/compositor.sh).
+    # On Omarchy the uwsm Niri session unit (wayland-wm@niri.desktop.service) is included too.
     local compositors=() unit
     source "$REPO_ROOT/scripts/lib/compositor.sh" 2>/dev/null || return 1
     mapfile -t compositors < <(compositor_units)

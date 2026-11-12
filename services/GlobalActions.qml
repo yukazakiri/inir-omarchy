@@ -221,6 +221,39 @@ Singleton {
             }
         },
         {
+            id: "switch-to-omarchy",
+            name: Translation.tr("Switch to Omarchy"),
+            description: Translation.tr("Replace this shell with the Omarchy shell — no logout, your windows stay open"),
+            icon: "swap_horiz",
+            category: "system",
+            keywords: ["switch", "omarchy", "hyprland", "shell", "bar", "session", "desktop"],
+            execute: () => {
+                Session.switchShell("omarchy")
+            }
+        },
+        {
+            id: "switch-to-niri",
+            name: Translation.tr("Switch to iNiR"),
+            description: Translation.tr("Replace the Omarchy shell with iNiR in this session"),
+            icon: "swap_horiz",
+            category: "system",
+            keywords: ["switch", "inir", "niri", "shell", "bar", "compositor", "session", "desktop"],
+            execute: () => {
+                Session.switchShell("inir")
+            }
+        },
+        {
+            id: "switch-session-to-niri",
+            name: Translation.tr("Log out to the Niri session"),
+            description: Translation.tr("Change the login session to Niri and log back in (closes everything)"),
+            icon: "logout",
+            category: "system",
+            keywords: ["switch", "session", "niri", "compositor", "logout", "relogin"],
+            execute: () => {
+                Session.switchCompositor("niri")
+            }
+        },
+        {
             id: "open-settings",
             name: Translation.tr("Open Settings"),
             description: Translation.tr("Open the shell settings panel"),
