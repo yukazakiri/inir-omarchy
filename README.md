@@ -127,10 +127,10 @@ cd omarchy-niri-switch
 This fork also has its own iNiR Hub source. Add it in **Settings → Hub → Sources**:
 
 ```text
-https://raw.githubusercontent.com/yukazakiri/inir-omarchy-hub/main/dist/index.json
+https://raw.githubusercontent.com/yukazakiri/inir-hub/main/dist/index.json
 ```
 
-The first item is [iNiR Docker](https://github.com/yukazakiri/inir-omarchy-hub/tree/main/widgets/inir-docker): a Material desktop card and iRiS Island line for Docker containers, with lifecycle controls and logs.
+The first item is [iNiR Docker](https://github.com/yukazakiri/inir-hub/tree/main/widgets/inir-docker): a Material desktop card and iRiS Island line for Docker containers, with lifecycle controls and logs.
 
 ---
 
