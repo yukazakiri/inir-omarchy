@@ -758,6 +758,29 @@ sync_user_desktop_integration_from_repo() {
   done
 }
 
+# Omarchy's owed wallpaper engine draws its own owe-background layer. Under Niri
+# that layer sits over iNiR's wallpaper, so the desktop shows Omarchy's picture
+# instead. Keep owed for Hyprland only; iNiR owns the wallpaper under Niri.
+ensure_omarchy_owed_guard() {
+  [[ -r /etc/os-release ]] && grep -qiE '^ID="?omarchy"?$' /etc/os-release || return 0
+
+  local dir="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/owed.service.d"
+  local file="$dir/omarchy-niri.conf"
+  local desired
+  desired='# iNiR runs its own wallpaper engine under Niri. Omarchy'"'"'s owed engine must not
+# draw its owe-background layer there, or it covers iNiR'"'"'s wallpaper.
+[Unit]
+ConditionEnvironment=XDG_CURRENT_DESKTOP=Hyprland'
+
+  mkdir -p "$dir" || return 1
+  if [[ -f "$file" && "$(<"$file")" == "$desired" ]]; then
+    return 0
+  fi
+  printf '%s\n' "$desired" > "$file" || return 1
+  has_usable_systemd_user_manager && systemctl --user daemon-reload >/dev/null 2>&1 || true
+  return 0
+}
+
 function niri_can_resolve_launcher_dir(){
   local launcher_dir="$1"
   local niri_pid=""

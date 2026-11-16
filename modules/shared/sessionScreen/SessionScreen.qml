@@ -396,6 +396,16 @@ Scope {
                         onFocusChanged: { if (focus) sessionRoot.subtitle = buttonText }
                         KeyNavigation.up: Session.showHibernateAction ? sessionTaskManager : sessionLogout
                         KeyNavigation.left: sessionReboot
+                        KeyNavigation.right: sessionSwitchOmarchy
+                    }
+                    SessionActionButton {
+                        id: sessionSwitchOmarchy
+                        buttonIcon: "swap_horiz"
+                        buttonText: Translation.tr("Omarchy")
+                        onClicked:  { Session.switchShell("omarchy"); sessionRoot.hide() }
+                        onFocusChanged: { if (focus) sessionRoot.subtitle = buttonText }
+                        KeyNavigation.up: sessionTaskManager
+                        KeyNavigation.left: sessionFirmwareReboot
                     }
                 }
 

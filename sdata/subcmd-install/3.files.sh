@@ -280,9 +280,9 @@ case "${SKIP_QUICKSHELL}" in
       fi
     fi
 
-    if is_packaged_setup; then
-      :
-    elif sync_user_desktop_integration_from_repo; then
+    ensure_omarchy_owed_guard || log_warning "Could not keep Omarchy's wallpaper engine off Niri"
+
+    if sync_user_desktop_integration_from_repo; then
       log_success "Desktop integration installed"
     else
       log_warning "Could not install desktop integration"

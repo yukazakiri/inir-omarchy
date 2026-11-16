@@ -80,7 +80,15 @@ if [[ "$THEME_MODE" != "light" && "$THEME_MODE" != "dark" ]]; then
         && THEME_MODE="light" || THEME_MODE="dark"
 fi
 CHOSEN_ICON_THEME=$(jq -r '.appearance.iconTheme // empty' "$SHELL_CONFIG_FILE" 2>/dev/null || true)
-[[ -z "$CHOSEN_ICON_THEME" ]] && CHOSEN_ICON_THEME=$(interface_setting icon-theme || true)
+# The icon theme is shared desktop state (gsettings, and kdeglobals/qtct below
+# read it back). Only take it over when desktop app theming is enabled: on a
+# machine shared with another shell (e.g. Omarchy) this would otherwise repoint
+# every app's icons on each run even with enableAppsAndShell=false.
+if [[ "$enable_apps_shell" == "false" ]]; then
+    CHOSEN_ICON_THEME=""
+else
+    [[ -z "$CHOSEN_ICON_THEME" ]] && CHOSEN_ICON_THEME=$(interface_setting icon-theme || true)
+fi
 APPLIED_ICON_THEME=""
 if [[ -n "$CHOSEN_ICON_THEME" ]]; then
     APPLIED_ICON_THEME=$("$SCRIPT_DIR/../lib/accel-run" icon-theme "$CHOSEN_ICON_THEME" "$THEME_MODE" 2>/dev/null || echo "$CHOSEN_ICON_THEME")
@@ -743,7 +751,12 @@ mkdir -p "$XDG_STATE_HOME/quickshell/user/generated"
 generate_pywalfox > "$XDG_STATE_HOME/quickshell/user/generated/pywalfox-colors.json"
 
 # Generate GTK3 CSS (legacy apps)
+# Desktop-level output: skip unless desktop app theming is enabled. An
+# unconditional write here restyles every GTK app on a shared machine.
 gtk_css_changed=false
+SKIP_GTK_CSS=false
+[[ "$enable_apps_shell" == "false" ]] && SKIP_GTK_CSS=true
+if [[ "$SKIP_GTK_CSS" != "true" ]]; then
 GTK3_CSS="$HOME/.config/gtk-3.0/gtk.css"
 mkdir -p "$(dirname "$GTK3_CSS")"
 break_symlink "$GTK3_CSS"
@@ -1033,6 +1046,8 @@ then
     gtk_css_changed=true
 fi
 
+fi # end SKIP_GTK_CSS (covers the GTK3 and GTK4 CSS blocks above)
+
 # qt5ct/qt6ct (the platform theme where plasma-integration is missing) read a palette of their own: QPalette's roles in
 # enum order. A KDE .colors file as their color_scheme_path left Qt apps light. Role mapping after jturbide's (#309).
 QTCT_PALETTE="$XDG_DATA_HOME/color-schemes/iNiR-qtct.conf"
@@ -1175,8 +1190,10 @@ sync_gtk_settings_ini() {
     fi
 }
 
-sync_gtk_settings_ini "$HOME/.config/gtk-3.0/settings.ini" "$SCRIPT_DIR/../../defaults/gtk-3.0/settings.ini" true
-sync_gtk_settings_ini "$HOME/.config/gtk-4.0/settings.ini" "$SCRIPT_DIR/../../defaults/gtk-4.0/settings.ini" false
+if [[ "$enable_apps_shell" != "false" ]]; then
+    sync_gtk_settings_ini "$HOME/.config/gtk-3.0/settings.ini" "$SCRIPT_DIR/../../defaults/gtk-3.0/settings.ini" true
+    sync_gtk_settings_ini "$HOME/.config/gtk-4.0/settings.ini" "$SCRIPT_DIR/../../defaults/gtk-4.0/settings.ini" false
+fi
 
 # GTK user CSS is loaded per process. Refresh only consumers that are known to
 # stay alive across theme changes; restarting the GTK portal backend makes new

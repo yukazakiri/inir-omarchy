@@ -269,24 +269,14 @@ QtObject {
     function _customRow(widget: string, key: string, option: var): var {
         const number = option.type === "int" || option.type === "real"
         const ranged = number && option.min !== undefined && option.max !== undefined
-        const listed = option.type === "string" && Array.isArray(option.options) && option.options.length > 0
-        return root.row(widget, key, option.label ?? key, option.type === "bool" ? "switch" : ranged ? "range" : listed ? "choice" : "text", option.default,
-            Object.assign({ restorable: true }, ranged ? { min: option.min, max: option.max, step: option.step ?? (option.type === "int" ? 1 : 0.1) } : {},
-                listed ? { choices: option.options.map(one => typeof one === "object" ? { label: String(one.label ?? one.displayName ?? one.value), value: one.value ?? one.label }
-                    : { label: String(one), value: one }) } : {}))
-    }
-    // A person's widget back to what its manifest says, every option at once.
-    function _restorable(widget: string): var {
-        return root.customRows.filter(spec => spec.widget === widget && spec.restorable && spec.fallback !== undefined && !spec.shell)
-    }
-    function changed(widget: string): bool {
-        Config.revision
-        return root._restorable(widget).some(spec => String(root.read(spec)) !== String(spec.fallback))
-    }
-    function restore(widget: string): void {
-        const values = ({})
-        for (const spec of root._restorable(widget)) values[spec.key] = spec.fallback
-        DesktopWidgetLayout.setEverywhere(widget, values)
+        const picks = option.options !== undefined && option.options !== null && option.options.length > 0
+        const kind = option.type === "bool" ? "switch" : picks ? "choice" : ranged ? "range" : "text"
+        const extra = picks
+            ? { choices: root.choices(Array.from(option.options).map(entry => [entry.value, entry.label, entry.glyph])) }
+            : ranged
+                ? { min: option.min, max: option.max, step: option.step ?? (option.type === "int" ? 1 : 0.1) }
+                : { placeholder: option.placeholder ?? "", detail: option.description ?? "" }
+        return root.row(widget, key, option.label ?? key, kind, option.default, extra)
     }
     // A sheet's page of a widget's rows, minus the keys it draws itself.
     function sheetRows(widget: string, page: string, exclude: var): var {
