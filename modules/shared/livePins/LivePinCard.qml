@@ -9,7 +9,7 @@ import qs.modules.common.widgets
 import qs.services
 
 // One live snip: the window's rectangle streamed, its controls over the top edge while the pointer is on it. Drag moves
-// it, the corner grip resizes it keeping its crop, a click goes to the window. The host places it at liveX/liveY.
+// it, the corner grip resizes it keeping its crop, a quick click goes to the window. The host places it at liveX/liveY.
 Item {
     id: card
     required property string pinId
@@ -27,9 +27,15 @@ Item {
         const id = card.pin?.appId ?? ""
         return AppSearch.lookupDesktopEntry(id)?.icon || AppSearch.guessIcon(id)
     }
+    // The shape it was cut with and the shape that streams now: a resized window moves the crop's edges (each keeps
+    // to its side). The card fits the live shape inside the box the person gave it, so it never grows past it.
+    readonly property real cutAspect: {
+        const c = card.pin?.crop ?? [0, 0, 16, 9]
+        return Math.max(1, c[3]) / Math.max(1, c[2])
+    }
     readonly property real aspect: {
-        const crop = card.pin?.crop ?? [0, 0, 16, 9]
-        return Math.max(1, crop[3]) / Math.max(1, crop[2])
+        const shown = crop.shownRect
+        return shown.width > 0 && shown.height > 0 ? shown.height / shown.width : card.cutAspect
     }
 
     property bool moving: false
@@ -39,10 +45,13 @@ Item {
     property real liveY: Number(card.pin?.y ?? 120)
     property real liveWidth: Number(card.pin?.width ?? 320)
     readonly property real radius: Appearance.rounding.normal
-    readonly property bool chrome: cardMouse.containsMouse || card.moving || card.sizing
+    // On the card's root, not its MouseArea: the grip and the buttons over that area would take its hover away.
+    readonly property bool chrome: hover.hovered || card.moving || card.sizing
+    HoverHandler { id: hover; enabled: card.enabled }
 
-    width: Math.round(card.liveWidth)
-    height: Math.round(card.liveWidth * card.aspect)
+    readonly property bool taller: card.aspect > card.cutAspect
+    width: Math.round(card.taller ? card.liveWidth * card.cutAspect / card.aspect : card.liveWidth)
+    height: Math.round(card.taller ? card.liveWidth * card.cutAspect : card.liveWidth * card.aspect)
 
     // The stored spot follows the file unless the pointer holds the card.
     onPinChanged: {
@@ -147,9 +156,11 @@ Item {
                     implicitSize: 16
                     source: Quickshell.iconPath(card.appIcon, "application-x-executable")
                 }
+                // What the icon and the buttons leave; at the narrowest the icon says it alone.
                 StyledText {
                     anchors.verticalCenter: parent.verticalCenter
-                    width: Math.min(implicitWidth, card.width - 120)
+                    width: Math.max(0, Math.min(implicitWidth, card.width - 10 - 16 - 7 - 8 - buttons.width - 6))
+                    visible: width >= 24
                     text: card.appName
                     color: "white"
                     font.pixelSize: Appearance.font.pixelSize.smaller
@@ -158,6 +169,7 @@ Item {
                 }
             }
             Row {
+                id: buttons
                 anchors { right: parent.right; rightMargin: 6; verticalCenter: parent.verticalCenter }
                 spacing: 2
                 PinButton {
@@ -186,6 +198,7 @@ Item {
 
     // Move and click, measured in window coordinates from the press: on the desktop the window stays still; above the
     // windows the card's own window moves, and niri keeps a press's coordinates relative to where that window was.
+    // Only a quick click goes to the window: a press held to take the card and let go in place leaves it be.
     MouseArea {
         id: cardMouse
         anchors.fill: parent
@@ -195,9 +208,13 @@ Item {
         cursorShape: card.moving ? Qt.ClosedHandCursor : Qt.PointingHandCursor
         property point press: Qt.point(0, 0)
         property point start: Qt.point(0, 0)
+        property real pressedAt: 0
+        property bool dragged: false
         onPressed: mouse => {
             cardMouse.press = cardMouse.mapToItem(null, mouse.x, mouse.y)
             cardMouse.start = Qt.point(card.liveX, card.liveY)
+            cardMouse.pressedAt = Date.now()
+            cardMouse.dragged = false
         }
         onPositionChanged: mouse => {
             if (!cardMouse.pressed) return
@@ -205,21 +222,20 @@ Item {
             const dx = at.x - cardMouse.press.x, dy = at.y - cardMouse.press.y
             if (!card.moving && Math.abs(dx) + Math.abs(dy) < 5) return
             card.moving = true
+            cardMouse.dragged = true
             card.liveX = Math.max(-card.width + 48, Math.min(card.bounds.width - 48, cardMouse.start.x + dx))
             card.liveY = Math.max(0, Math.min(card.bounds.height - 48, cardMouse.start.y + dy))
         }
         onReleased: {
-            if (card.moving) {
-                card.moving = false
-                LivePins.update(card.pinId, { x: Math.round(card.liveX), y: Math.round(card.liveY) })
-            } else {
-                LivePins.activate(card.pinId)
-            }
+            if (!card.moving) return
+            card.moving = false
+            LivePins.update(card.pinId, { x: Math.round(card.liveX), y: Math.round(card.liveY) })
         }
+        onClicked: if (!cardMouse.dragged && Date.now() - cardMouse.pressedAt < 350) LivePins.activate(card.pinId)
     }
 
-    // The corner grip: width follows the pointer, height follows the crop. The card grows from its top left corner,
-    // which neither host moves while it does.
+    // The corner grip: the card's width follows the pointer (its box scaled with it), height follows the crop. The card
+    // grows from its top left corner, which neither host moves while it does.
     MouseArea {
         id: grip
         width: 26
@@ -229,15 +245,18 @@ Item {
         cursorShape: Qt.SizeFDiagCursor
         property real pressX: 0
         property real startWidth: 0
+        property real startShown: 1
         onPressed: mouse => {
             grip.pressX = grip.mapToItem(null, mouse.x, mouse.y).x
             grip.startWidth = card.liveWidth
+            grip.startShown = Math.max(1, card.width)
             card.sizing = true
         }
         onPositionChanged: mouse => {
             if (!grip.pressed) return
             const dx = grip.mapToItem(null, mouse.x, mouse.y).x - grip.pressX
-            card.liveWidth = Math.max(LivePins.minWidth, Math.min(LivePins.maxWidth, grip.startWidth + dx))
+            const k = Math.max(0.05, (grip.startShown + dx) / grip.startShown)
+            card.liveWidth = Math.max(LivePins.minWidth, Math.min(LivePins.maxWidth, grip.startWidth * k))
         }
         onReleased: {
             card.sizing = false

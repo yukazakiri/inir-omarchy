@@ -246,6 +246,15 @@ Singleton {
         return root.setValue(outputName, widgetKey, "enable", Boolean(enabled))
     }
 
+    // Putting a widget on one screen or taking it away there (arranging, a family's gallery). With widgets on a single
+    // screen that is the widget's own switch; with more, that screen's record alone, so the other screens keep theirs.
+    function setEnabledOn(outputName, widgetKey, enabled): bool {
+        if (!root.isLockScope(outputName)
+                && Quickshell.screens.filter(screen => root.outputAllowed(screen?.name)).length <= 1)
+            return root.setGloballyEnabled(widgetKey, enabled)
+        return root.setEnabled(outputName, widgetKey, enabled)
+    }
+
     function initializeOutputLayout(outputName, width, height, widgetValues, leaving): bool {
         const output = root._outputName(outputName)
         const outputWidth = Math.max(0, Math.round(Number(width) || 0))
@@ -369,7 +378,7 @@ Singleton {
         if (!enabled)
             DesktopWidgetStacks.leave(root._widgetKey(widgetKey))
         Config.setNestedValue(path + ".enable", Boolean(enabled))
-        root.clearEnableOverrides()
+        root.clearEnableOverrides(widgetKey)
         return true
     }
 
@@ -455,7 +464,8 @@ Singleton {
         return true
     }
 
-    function clearEnableOverrides(): bool {
+    function clearEnableOverrides(onlyWidget = ""): bool {
+        const only = root._widgetKey(onlyWidget)
         const list = root._normalizedRecords()
         let changed = false
         for (let i = 0; i < list.length; ++i) {
@@ -463,6 +473,8 @@ Singleton {
                 continue
             const widgets = list[i].widgets
             for (const widgetKey of Object.keys(widgets)) {
+                if (only && widgetKey !== only)
+                    continue
                 const override = widgets[widgetKey]
                 if (!Object.prototype.hasOwnProperty.call(override, "enable"))
                     continue

@@ -787,6 +787,21 @@
    ]
   },
   {
+   "name": "colorPicker",
+   "family": "shared",
+   "description": "Takes one colour from the screen: every screen stands still under a loupe, a click copies that pixel's hex.",
+   "notes": "```kdl\nSuper+Shift+C { spawn \"inir\" \"colorpicker\"; }\n```",
+   "example": "Super+Shift+C { spawn \"inir\" \"colorpicker\"; }",
+   "functions": [
+    {
+     "name": "pick",
+     "args": [],
+     "description": "Take a colour from the screen and copy its hex",
+     "values": []
+    }
+   ]
+  },
+  {
    "name": "connections",
    "family": "shared",
    "description": "Short notices when something is plugged in, connected, unplugged or lost: networks, the internet, Bluetooth devices, USB devices by name (mice, keyboards, controllers, cameras, phones), the charger, the sound output, displays, and drives and memory cards with their name and size. Each family shows them its own way: a pill under the bar in Material, a panel in Waffle, the Island in iRiS. Settings has a switch for each kind.",
@@ -2238,7 +2253,7 @@
   {
    "name": "livePins",
    "family": "shared",
-   "description": "Live snips: a part of a window kept on screen, streamed, even when the window is on another workspace (qs-rs on niri).",
+   "description": "Live snips: a part of a window kept on screen, streamed, even when the window is on another workspace (qs-rs on niri and Umbriel).",
    "notes": "",
    "example": "",
    "functions": [
@@ -2257,7 +2272,7 @@
     {
      "name": "frame",
      "args": [],
-     "description": "Pick a window and drag over the part to keep",
+     "description": "Pick a window to pin whole, or drag over the part to keep",
      "values": []
     },
     {
@@ -2284,15 +2299,6 @@
      "name": "clear",
      "args": [],
      "description": "Remove every pin",
-     "values": []
-    },
-    {
-     "name": "place",
-     "args": [
-      "id",
-      "place"
-     ],
-     "description": "Where the pin lives",
      "values": []
     },
     {
@@ -3021,7 +3027,7 @@
   {
    "name": "overlay",
    "family": "shared",
-   "description": "Floating tools (Super+G): notes, images, crosshair, recorder, resources and other pinnable desktop tools.",
+   "description": "Floating tools (Super+G): a bench of game tools over the screen (recorder, mixer, resources, FPS cap, crosshair, notes, a picture, notifications, Discord, game performance); a pinned tool stays once it closes.",
    "notes": "```kdl\nSuper+G { spawn \"inir\" \"overlay\" \"toggle\"; }\n```",
    "example": "Super+G { spawn \"inir\" \"overlay\" \"toggle\"; }",
    "functions": [
@@ -3032,27 +3038,61 @@
      "values": []
     },
     {
+     "name": "open",
+     "args": [],
+     "description": "Open Floating tools",
+     "values": []
+    },
+    {
+     "name": "close",
+     "args": [],
+     "description": "Close Floating tools (pinned tools stay)",
+     "values": []
+    },
+    {
      "name": "tool",
      "args": [
       "identifier",
       "action"
      ],
-     "description": "Show or hide one floating tool by id (`crosshair`, `fpsLimiter`, `floatingImage`, `recorder`, `resources`, `notes`, `discord`, `volumeMixer`, `notifications`, `gamePerformance`): `on`, `off` or `toggle`",
+     "description": "Show or hide one floating tool by id (`crosshair`, `fpsLimiter`, `floatingImage`, `recorder`, `resources`, `network`, `notes`, `discord`, `volumeMixer`, `notifications`, `gamePerformance`, `clock`, `timer`): `on`, `off` or `toggle`",
      "values": [
       "crosshair",
       "fpsLimiter",
       "floatingImage",
       "recorder",
       "resources",
+      "network",
       "notes",
       "discord",
       "volumeMixer",
       "notifications",
       "gamePerformance",
+      "clock",
+      "timer",
       "on",
       "off",
       "toggle"
      ]
+    },
+    {
+     "name": "pin",
+     "args": [
+      "identifier",
+      "action"
+     ],
+     "description": "Pin one floating tool so it stays over the screen when the bench closes: `on`, `off` or `toggle`",
+     "values": [
+      "on",
+      "off",
+      "toggle"
+     ]
+    },
+    {
+     "name": "arrange",
+     "args": [],
+     "description": "Lay every open tool out again, side by side from the screen's edges",
+     "values": []
     }
    ]
   },
@@ -4553,6 +4593,7 @@
   "cliphist-service": "cliphistService",
   "close-confirm": "closeConfirm",
   "color-mode": "colorMode",
+  "color-picker": "colorPicker",
   "control-panel": "controlPanel",
   "coverflow-selector": "coverflowSelector",
   "custom-widgets": "customWidgets",

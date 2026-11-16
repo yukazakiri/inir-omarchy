@@ -13,6 +13,8 @@
 //@ pragma Env QTWEBENGINE_CHROMIUM_FLAGS=--disable-features=ThirdPartyCookieBlocking,StorageAccessAPI
 
 import qs.modules.common
+import qs.modules.common.widgets
+import qs.modules.shared.overlay
 
 import QtQuick
 import Quickshell
@@ -784,6 +786,32 @@ ShellRoot {
     LazyLoader { active: Config.ready && GlobalStates.japaneseLookupOpen; source: "modules/shared/japaneseLookup/JapaneseLookup.qml" }
     LazyLoader { active: Config.ready; source: "modules/shared/tilingOverlay/TilingOverlayRouter.qml" }
     LazyLoader { active: Config.ready; source: "modules/shared/wallpaperSelector/WallpaperSelectorRouter.qml" }
+    LazyLoader {
+        active: Config.ready && GlobalStates.screenColorPickerOpen
+        ScreenColorPicker {
+            Component.onCompleted: pick()
+            onPicked: value => {
+                const hex = String(value).toUpperCase()
+                // Its windows are gone by now and Wayland only lets a focused surface set the selection: wl-copy
+                // owns it instead.
+                Quickshell.execDetached(["wl-copy", hex])
+                toastManager.addToast(Translation.tr("Copied %1").arg(hex), "", "colorize", false, 2400, "colorPicker", value)
+                GlobalStates.screenColorPickerOpen = false
+            }
+            onCancelled: GlobalStates.screenColorPickerOpen = false
+        }
+    }
+
+    /// Takes one colour from the screen: every screen stands still under a loupe, a click copies that pixel's hex.
+    ///
+    /// ```kdl
+    /// Super+Shift+C { spawn "inir" "colorpicker"; }
+    /// ```
+    IpcHandler {
+        target: "colorPicker"
+        /// Take a colour from the screen and copy its hex
+        function pick(): void { GlobalStates.screenColorPickerOpen = true }
+    }
 
     // Same reason as the routers: both panel files declared these, so every
     // family switch registered them twice and Quickshell kept whichever won the
@@ -801,7 +829,8 @@ ShellRoot {
         function open(): void { GlobalStates.oskOpen = true }
     }
 
-    /// Floating tools (Super+G): notes, images, crosshair, recorder, resources and other pinnable desktop tools.
+    /// Floating tools (Super+G): a bench of game tools over the screen (recorder, mixer, resources, FPS cap,
+    /// crosshair, notes, a picture, notifications, Discord, game performance); a pinned tool stays once it closes.
     ///
     /// ```kdl
     /// Super+G { spawn "inir" "overlay" "toggle"; }
@@ -810,17 +839,30 @@ ShellRoot {
         target: "overlay"
         /// Open/close Floating tools
         function toggle(): void { GlobalStates.overlayOpen = !GlobalStates.overlayOpen }
+        /// Open Floating tools
+        function open(): void { GlobalStates.overlayOpen = true }
+        /// Close Floating tools (pinned tools stay)
+        function close(): void { GlobalStates.overlayOpen = false }
         /// Show or hide one floating tool by id (`crosshair`, `fpsLimiter`, `floatingImage`, `recorder`, `resources`,
-        /// `notes`, `discord`, `volumeMixer`, `notifications`, `gamePerformance`): `on`, `off` or `toggle`
+        /// `network`, `notes`, `discord`, `volumeMixer`, `notifications`, `gamePerformance`, `clock`, `timer`): `on`,
+        /// `off` or `toggle`
         function tool(identifier: string, action: string): string {
-            const state = Persistent.states.overlay
-            if (!state || typeof state[identifier] !== "object") return "Unknown tool"
-            const open = state.open.includes(identifier)
-            const wanted = action === "on" ? true : action === "off" ? false : !open
-            if (wanted && !open) state.open.push(identifier)
-            else if (!wanted && open) state.open = state.open.filter(id => id !== identifier)
+            if (!OverlayContext.info(identifier)) return "Unknown tool"
+            const wanted = action === "on" ? true : action === "off" ? false : !OverlayContext.isOpen(identifier)
+            OverlayContext.setOpen(identifier, wanted)
             return wanted ? "on" : "off"
         }
+        /// Pin one floating tool so it stays over the screen when the bench closes: `on`, `off` or `toggle`
+        function pin(identifier: string, action: string): string {
+            const entry = Persistent.states.overlay?.[identifier]
+            if (!OverlayContext.info(identifier) || typeof entry !== "object") return "Unknown tool"
+            const wanted = action === "on" ? true : action === "off" ? false : !entry.pinned
+            if (wanted) OverlayContext.setOpen(identifier, true)
+            entry.pinned = wanted
+            return wanted ? "on" : "off"
+        }
+        /// Lay every open tool out again, side by side from the screen's edges
+        function arrange(): void { OverlayContext.arrange() }
     }
 
     /// Power menu. Logout, suspend, reboot, shutdown. The "I'm done for today" buttons.
@@ -1043,7 +1085,7 @@ ShellRoot {
     LazyLoader { active: Config.ready; source: "modules/shared/closeConfirm/CloseConfirm.qml" }
 
     // Shared (always loaded via ToastManager)
-    ToastManager {}
+    ToastManager { id: toastManager }
 
     // Installed families in the order the switch walks them (familyCycle), the rest after; each lists its panels in
     // its plugin.json (`enabledPanels`).

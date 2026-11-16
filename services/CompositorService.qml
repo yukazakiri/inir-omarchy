@@ -21,6 +21,15 @@ Singleton {
     // ext-background-effect-v1 blur regions: Niri 26.04 takes them; Umbriel blurs by its layer rules instead (iNiR
     // writes the one compositor glass asks for), so a surface leaves its region unset there.
     readonly property bool blurRegions: niriNative
+    // Live window pictures (qs-rs). A runtime with toplevel-image-copy asks the compositor (its image-copy globals, or
+    // niri's ScreenCast); an older one streams niri windows only. Umbriel's windows go by its own ids
+    // (NiriService.umbrielWindowKey), which only the newer runtime takes.
+    readonly property bool windowCapture: SystemInfo.runtimeHas(["toplevel-image-copy"])
+        ? (niriNative || isUmbriel) && ToplevelManager.canCaptureWindows
+        : niriNative && SystemInfo.runtimeHas(["niri-window-capture"])
+    // A captured window off screen keeps drawing: Umbriel sends it frames while captured. Niri (26.04 and main) sends
+    // windows it doesn't show one frame callback a second, cast or not (niri-wm/niri#2609 is still open).
+    readonly property bool capturedWindowsDraw: isUmbriel
 
     readonly property string hyprlandSignature: Quickshell.env("HYPRLAND_INSTANCE_SIGNATURE")
     readonly property string niriSocket: Quickshell.env("NIRI_SOCKET")
@@ -137,10 +146,13 @@ Singleton {
         enabled: root.sortingActive
         // Only the reordering waits for the timer: a window that closed leaves the list at once, since anything built
         // from the list in those 100 ms (a dock icon) kept a toplevel that was already gone.
+        // Niri's list holds enriched copies: each is matched by the handle it came from, or every window that
+        // opened emptied the list for those 100 ms and the dock dropped every open app and grew them back.
         function onValuesChanged() {
             const live = Array.from(ToplevelManager.toplevels.values ?? [])
-            if (root.sortedToplevels.some(toplevel => !live.includes(toplevel)))
-                root.sortedToplevels = root.sortedToplevels.filter(toplevel => live.includes(toplevel))
+            const alive = toplevel => live.includes(toplevel?._sourceToplevel ?? toplevel)
+            if (root.sortedToplevels.some(toplevel => !alive(toplevel)))
+                root.sortedToplevels = root.sortedToplevels.filter(alive)
             root.scheduleSort()
         }
     }

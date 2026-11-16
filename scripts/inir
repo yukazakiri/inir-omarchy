@@ -3520,7 +3520,10 @@ run_service_command() {
 # What this desktop runs of every part beside what this iNiR pins (sdata/prebuilt.json), so a person sees that an
 # update reached everything; a part behind its pin names the fix.
 _part_version_line() {
-    if [[ -n "$3" && "$2" != "$3" ]]; then
+    # a CI test build (bin/ci-take) is ahead of its pin: an update would take it back, not fix it
+    if [[ -n "$3" && "$2" == ci-* ]]; then
+        printf '%s: %s (a test build, newer than the %s this iNiR pins; inir update goes back to it)\n' "$1" "$2" "$3"
+    elif [[ -n "$3" && "$2" != "$3" ]]; then
         printf '%s: %s (this iNiR pins %s; run inir update)\n' "$1" "${2:-not installed}" "$3"
     else
         printf '%s: %s\n' "$1" "${2:-not installed}"
@@ -4776,6 +4779,7 @@ case "$command_name" in
         run_runtime_script "$config_dir" "scripts/close-window.sh"
         ;;
     colorpicker)
+        require_qs
         while [[ $# -gt 0 ]]; do
             case "$1" in
                 -h|--help)
@@ -4788,11 +4792,12 @@ case "$command_name" in
                     ;;
             esac
         done
-        if ! command -v hyprpicker >/dev/null 2>&1; then
-            echo "hyprpicker not found — install it to use colorpicker" >&2
+        resolve_config_dir
+        if ! ensure_running_instance "$config_dir"; then
+            echo "Timed out waiting for iNiR to start" >&2
             exit 1
         fi
-        exec hyprpicker -a
+        exec "$qs_bin" -p "$config_dir" ipc call colorPicker pick
         ;;
     ipc)
         require_qs
